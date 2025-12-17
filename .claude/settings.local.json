@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree:*)",
+      "Bash(sed:*)",
+      "Bash(python3:*)",
+      "Bash(make test:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
