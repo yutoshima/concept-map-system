@@ -1,7 +1,7 @@
-#!/usr:bin/env python3
+#!/usr/bin/env python3
 
 """
-WLEA (Weighted Link Evaluation Algorithm) 採点アルゴリズム
+LEA (Link Evaluation Algorithm) 採点アルゴリズム
 
 因果関係リンク評価システム。
 最適マッチングアルゴリズムにより、F値、再現率、適合率を計算します。
@@ -14,14 +14,15 @@ WLEA (Weighted Link Evaluation Algorithm) 採点アルゴリズム
     - 0点: 一致なし
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 
 from ..core import BaseAlgorithm, constants, register_algorithm
 from ..core.constants import ResultKeys
 from ..core.exceptions import AlgorithmExecutionError
 from ..utils.formatting import create_separator, create_title_block, join_output
-from .wlea_core import (
+from .lea_core import (
     MAX_LINK_SCORE,
+    Link,
     LinkCSVError,
     calculate_f_value,
     calculate_optimal_matching_bruteforce,
@@ -34,19 +35,25 @@ from .wlea_core import (
 
 
 @register_algorithm
-class WLEAAlgorithm(BaseAlgorithm):
-    """WLEA (Weighted Link Evaluation Algorithm) 因果関係リンク評価アルゴリズム"""
+class LEAAlgorithm(BaseAlgorithm):
+    """
+    LEA (Link Evaluation Algorithm) 因果関係リンク評価アルゴリズム
+
+    注意: このアルゴリズムはMcClure/Novakと異なり、Scorer抽象化を使用しません。
+    理由: LEAはLink単位で処理し、Proposition単位ではないため、
+          SimplePropositionScorerパターンに適合しません。
+    """
 
     def __init__(self) -> None:
         """初期化"""
         super().__init__(
-            name="wlea",
+            name="lea",
             description=(
-                "WLEA法: 因果関係リンク評価システム。最適マッチングによりF値、再現率、適合率を計算。"
+                f"{constants.AlgorithmNames.LEA}法: 因果関係リンク評価システム。最適マッチングによりF値、再現率、適合率を計算。"
             ),
         )
 
-    def _load_links(self, master_file: str, student_file: str, debug: bool) -> tuple[list, list]:
+    def _load_links(self, master_file: str, student_file: str, debug: bool) -> Tuple[List[Link], List[Link]]:
         """
         CSVファイルからリンクデータを読み込む
 
@@ -79,7 +86,9 @@ class WLEAAlgorithm(BaseAlgorithm):
 
         return answers, student_links
 
-    def _build_matching_details(self, answers: list, student_links: list, matching: list) -> list:
+    def _build_matching_details(
+        self, answers: List[Link], student_links: List[Link], matching: List[Tuple[int, int]]
+    ) -> List[Dict[str, Any]]:
         """
         マッチング詳細情報を構築
 
@@ -104,9 +113,9 @@ class WLEAAlgorithm(BaseAlgorithm):
     def _build_simple_result(
         self,
         score: int,
-        answers: list,
-        student_links: list,
-        matching: list,
+        answers: List[Link],
+        student_links: List[Link],
+        matching: List[Tuple[int, int]],
         verbose: bool,
     ) -> Dict[str, Any]:
         """
@@ -126,7 +135,7 @@ class WLEAAlgorithm(BaseAlgorithm):
         score_rate = score / max_possible_score if max_possible_score > 0 else 0.0
 
         results: Dict[str, Any] = {
-            ResultKeys.METHOD: "WLEA",
+            ResultKeys.METHOD: constants.AlgorithmNames.LEA,
             "mode": "simple_score_only",
             ResultKeys.RAW_SCORE: score,
             ResultKeys.MAX_POSSIBLE_SCORE: max_possible_score,
@@ -147,11 +156,11 @@ class WLEAAlgorithm(BaseAlgorithm):
     def _build_full_result(
         self,
         score: int,
-        answers: list,
-        student_links: list,
-        matching: list,
-        used_answers: list,
-        used_students: list,
+        answers: List[Link],
+        student_links: List[Link],
+        matching: List[Tuple[int, int]],
+        used_answers: List[int],
+        used_students: List[int],
         verbose: bool,
     ) -> Dict[str, Any]:
         """
@@ -174,7 +183,7 @@ class WLEAAlgorithm(BaseAlgorithm):
         )
 
         results: Dict[str, Any] = {
-            ResultKeys.METHOD: "WLEA",
+            ResultKeys.METHOD: constants.AlgorithmNames.LEA,
             "mode": "full_metrics",
             ResultKeys.RAW_SCORE: metrics["raw_score"],
             ResultKeys.MAX_POSSIBLE_SCORE: metrics["max_possible_score"],
@@ -199,7 +208,7 @@ class WLEAAlgorithm(BaseAlgorithm):
 
     def execute(self, master_file: str, student_file: str, **kwargs: Any) -> Dict[str, Any]:
         """
-        WLEA方式で採点を実行
+        LEA方式で採点を実行
 
         Args:
             master_file: 模範解答のCSVファイル
@@ -236,11 +245,11 @@ class WLEAAlgorithm(BaseAlgorithm):
             )
 
         except LinkCSVError as e:
-            msg = f"WLEA採点中のデータエラー: {e!s}"
+            msg = f"{constants.AlgorithmNames.LEA}採点中のデータエラー: {e!s}"
             raise AlgorithmExecutionError(msg) from e
         except Exception as e:
-            self.logger.exception("WLEA採点中に予期しないエラーが発生しました")
-            msg = f"WLEA採点中に予期しないエラーが発生しました: {e!s}"
+            self.logger.exception(f"{constants.AlgorithmNames.LEA}採点中に予期しないエラーが発生しました")
+            msg = f"{constants.AlgorithmNames.LEA}採点中に予期しないエラーが発生しました: {e!s}"
             raise AlgorithmExecutionError(msg) from e
 
     def get_supported_options(self) -> Dict[str, Dict[str, Any]]:
@@ -275,7 +284,7 @@ class WLEAAlgorithm(BaseAlgorithm):
         output = []
 
         # タイトルブロック
-        output.extend(create_title_block("【WLEA法 評価結果】"))
+        output.extend(create_title_block(f"【{constants.AlgorithmNames.LEA}法 評価結果】"))
 
         mode = results.get("mode", "full_metrics")
 

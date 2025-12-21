@@ -105,9 +105,9 @@ class ScoringResult(TypedDict, total=False):
     limitation_score: int
 
 
-class WLEAResult(TypedDict, total=False):
+class LEAResult(TypedDict, total=False):
     """
-    WLEA (Weighted Link Evaluation Algorithm) 採点結果の型定義
+    LEA (Link Evaluation Algorithm) 採点結果の型定義
 
     Attributes:
         method: 採点方式名

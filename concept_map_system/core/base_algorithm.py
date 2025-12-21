@@ -170,6 +170,8 @@ class BaseAlgorithm(ABC):
         algorithm_name: str,
         verbose: bool,
         debug: bool,
+        decompose_qualifiers: bool = False,
+        expansion_mode: str = "",  # 空文字列の場合はデフォルト値を使用
     ) -> Dict[str, Any]:
         """
         共通の採点実行ロジックとエラーハンドリング
@@ -181,6 +183,8 @@ class BaseAlgorithm(ABC):
             algorithm_name: アルゴリズム名（エラーメッセージ用）
             verbose: verboseモードフラグ
             debug: debugモードフラグ
+            decompose_qualifiers: 限定分解モードフラグ（後方互換性のため）
+            expansion_mode: 展開モード ('none', 'qualifier', 'junction')
 
         Returns:
             Dict[str, Any]: 採点結果
@@ -196,6 +200,9 @@ class BaseAlgorithm(ABC):
         )
 
         try:
+            # 展開モードを設定
+            expansion_mode = self._configure_scorer_expansion(scorer, expansion_mode, decompose_qualifiers)
+
             self.logger.info(f"データを読み込み中: master={master_file}, student={student_file}")
             scorer.load_data(master_file, student_file)
             self._log_data_info(scorer, debug)
@@ -211,6 +218,94 @@ class BaseAlgorithm(ABC):
             self.logger.exception(f"{algorithm_name}採点中に予期しないエラーが発生しました")
             msg = f"{algorithm_name}採点中に予期しないエラーが発生しました: {e!s}"
             raise AlgorithmExecutionError(msg) from e
+
+    def _configure_scorer_expansion(
+        self, scorer: Any, expansion_mode: str, decompose_qualifiers: bool = False
+    ) -> str:
+        """
+        scorerの展開モードを設定
+
+        Args:
+            scorer: scorerインスタンス
+            expansion_mode: 展開モード設定
+            decompose_qualifiers: 後方互換性のための限定分解フラグ
+
+        Returns:
+            str: 実際に設定された展開モード
+        """
+        # 展開モードのデフォルト値を設定
+        if not expansion_mode:
+            from . import constants
+
+            expansion_mode = constants.ExpansionModes.JUNCTION
+
+        # 展開モードを設定（scorerがサポートしている場合）
+        if hasattr(scorer, "set_expansion_mode"):
+            scorer.set_expansion_mode(expansion_mode)
+        elif hasattr(scorer, "set_decompose_qualifiers"):
+            # 後方互換性のため
+            scorer.set_decompose_qualifiers(decompose_qualifiers)
+
+        return expansion_mode
+
+    def _extract_scorer_parameters(self, **kwargs: Any) -> Dict[str, Any]:
+        """
+        kwargsからscorer固有のパラメータを抽出
+
+        サブクラスでオーバーライドして、アルゴリズム固有のパラメータを抽出します。
+
+        Args:
+            **kwargs: 実行時に渡されたキーワード引数
+
+        Returns:
+            Dict[str, Any]: scorerのコンストラクタに渡すパラメータ
+        """
+        return {}
+
+    def execute_with_scorer(
+        self,
+        master_file: str,
+        student_file: str,
+        scorer_factory: type,
+        algorithm_name: str,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """
+        scorerインスタンスを使用した採点実行のテンプレートメソッド
+
+        共通の実行パターンを提供し、アルゴリズム間のコード重複を削減します。
+
+        Args:
+            master_file: 模範解答ファイルパス
+            student_file: 生徒の回答ファイルパス
+            scorer_factory: scorerクラス（インスタンス化に使用）
+            algorithm_name: アルゴリズム名（エラーメッセージ用）
+            **kwargs: 追加のオプション
+
+        Returns:
+            Dict[str, Any]: 採点結果
+        """
+        # ファイルの検証
+        self.validate_files(master_file, student_file)
+
+        # 共通オプションの抽出
+        options = self._extract_execution_options(**kwargs)
+        verbose = options["verbose"]
+        debug = options["debug"]
+
+        # 展開モードの取得
+        from . import constants
+
+        expansion_mode = kwargs.get("expansion_mode", constants.ExpansionModes.JUNCTION)
+
+        # アルゴリズム固有のパラメータを抽出してscorerを作成
+        scorer_params = self._extract_scorer_parameters(**kwargs)
+        scorer = scorer_factory(**scorer_params)
+
+        # 共通の実行ロジックとエラーハンドリング
+        return self._execute_scoring_with_error_handling(
+            scorer, master_file, student_file, algorithm_name, verbose, debug, False, expansion_mode
+        )
 
     def format_results(self, results: Dict[str, Any]) -> str:
         """

@@ -153,7 +153,7 @@ class McClureAlgorithm(BaseAlgorithm):
         Args:
             master_file: 模範解答のCSVファイル
             student_file: 生徒の回答のCSVファイル
-            **kwargs: 追加のオプション（verbose, debugなど）
+            **kwargs: 追加のオプション（verbose, debug, expansion_modeなど）
 
         Returns:
             採点結果
@@ -161,20 +161,8 @@ class McClureAlgorithm(BaseAlgorithm):
         Raises:
             Exception: 採点中にエラーが発生した場合
         """
-        # ファイルの検証
-        self.validate_files(master_file, student_file)
-
-        # オプションの取得
-        options = self._extract_execution_options(**kwargs)
-        verbose = options["verbose"]
-        debug = options["debug"]
-
-        # McClureScorerのインスタンスを作成
-        scorer = McClureScorer()
-
-        # 共通の実行ロジックとエラーハンドリング
-        return self._execute_scoring_with_error_handling(
-            scorer, master_file, student_file, "McClure", verbose, debug
+        return self.execute_with_scorer(
+            master_file, student_file, scorer_factory=McClureScorer, algorithm_name="McClure", **kwargs
         )
 
     def get_supported_options(self) -> Dict[str, Dict[str, Any]]:
@@ -184,7 +172,23 @@ class McClureAlgorithm(BaseAlgorithm):
         Returns:
             オプション定義
         """
-        return self.get_common_options()
+        options = self.get_common_options()
+        options["expansion_mode"] = {
+            "type": str,
+            "default": constants.ExpansionModes.JUNCTION,
+            "choices": [
+                constants.ExpansionModes.NONE,
+                constants.ExpansionModes.QUALIFIER,
+                constants.ExpansionModes.JUNCTION,
+            ],
+            "help": (
+                "展開モード: "
+                f"'{constants.ExpansionModes.NONE}'=展開しない, "
+                f"'{constants.ExpansionModes.QUALIFIER}'=限定分解(Qualifierリンク使用), "
+                f"'{constants.ExpansionModes.JUNCTION}'=Junction方式(デフォルト)"
+            ),
+        }
+        return options
 
     def format_results(self, results: Dict[str, Any]) -> str:
         """

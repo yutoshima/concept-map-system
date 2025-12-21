@@ -24,7 +24,7 @@ from .logging_config import get_logger, setup_logging
 from .types import (
     ExecutionResultData,
     ExpandedProposition,
-    WLEAResult,
+    LEAResult,
     PropositionData,
     ScoringResult,
 )
@@ -42,7 +42,7 @@ __all__ = [
     "FileValidationError",
     "InvalidPropositionError",
     "LinkCSVError",
-    "WLEAResult",
+    "LEAResult",
     "ParallelExecutor",
     "PropositionData",
     "ScoringError",

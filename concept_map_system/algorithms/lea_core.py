@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-WLEA (Weighted Link Evaluation Algorithm) コアロジック
+LEA (Link Evaluation Algorithm) コアロジック
 
 因果関係リンクの評価システムの中核機能を提供します。
 最適マッチングアルゴリズムにより、模範解答と学習者解答を比較します。
@@ -27,7 +27,7 @@ logger = get_logger(__name__)
 Link = Tuple[Set[str], Set[str], str]  # (antes_set, conq_set, link_type)
 
 # スコア定数（定数から取得）
-MAX_LINK_SCORE = constants.ScoringConstants.LINK_EVAL_MAX_SCORE  # リンクの最大スコア（完全一致）
+MAX_LINK_SCORE = constants.ScoringConstants.LEA_MAX_SCORE  # リンクの最大スコア（完全一致）
 
 
 # ============================================================================
@@ -86,6 +86,16 @@ def compare_links(answer: Link, student: Link) -> int:
 # ============================================================================
 
 
+def _initialize_matching_state() -> Tuple[int, List[Tuple[int, int]], List[int], List[int]]:
+    """
+    マッチング状態の初期値を返す
+
+    Returns:
+        (best_score, best_matching, best_answer_indices, best_student_indices)の初期値
+    """
+    return 0, [], [], []
+
+
 def calculate_optimal_matching_bruteforce(
     answers: List[Link], students: List[Link], verbose: bool = False
 ) -> Tuple[int, List[Tuple[int, int]], List[int], List[int]]:
@@ -122,12 +132,9 @@ def calculate_optimal_matching_bruteforce(
     n_students = len(students)
 
     if n_answers == 0 or n_students == 0:
-        return 0, [], [], []
+        return _initialize_matching_state()
 
-    best_score = 0
-    best_matching: List[Tuple[int, int]] = []
-    best_answer_indices: List[int] = []
-    best_student_indices: List[int] = []
+    best_score, best_matching, best_answer_indices, best_student_indices = _initialize_matching_state()
 
     if n_answers <= n_students:
         # Case 1: 模範解答数 ≤ 学習者解答数
@@ -137,7 +144,15 @@ def calculate_optimal_matching_bruteforce(
 
         answer_range = list(range(n_answers))
         best_score, best_matching, best_answer_indices, best_student_indices = (
-            _find_best_matching_case1(answers, students, n_answers, answer_range, best_score)
+            _find_best_matching_generic(
+                answers,
+                students,
+                fixed_indices=answer_range,
+                selection_pool_size=n_students,
+                selection_count=n_answers,
+                fixed_role="answer",
+                initial_best_score=best_score,
+            )
         )
     else:
         # Case 2: 模範解答数 > 学習者解答数
@@ -147,10 +162,36 @@ def calculate_optimal_matching_bruteforce(
 
         student_range = list(range(n_students))
         best_score, best_matching, best_answer_indices, best_student_indices = (
-            _find_best_matching_case2(answers, students, n_students, student_range, best_score)
+            _find_best_matching_generic(
+                answers,
+                students,
+                fixed_indices=student_range,
+                selection_pool_size=n_answers,
+                selection_count=n_students,
+                fixed_role="student",
+                initial_best_score=best_score,
+            )
         )
 
     return best_score, best_matching, best_answer_indices, best_student_indices
+
+
+def _validate_indices(indices: List[int], max_index: int, label: str) -> None:
+    """
+    インデックスの有効性を検証
+
+    Args:
+        indices: 検証するインデックスのリスト
+        max_index: 有効な最大インデックス（排他的）
+        label: エラーメッセージ用のラベル
+
+    Raises:
+        IndexError: インデックスが範囲外の場合
+    """
+    for idx in indices:
+        if idx < 0 or idx >= max_index:
+            msg = f"無効な{label}インデックス {idx}（有効範囲: 0-{max_index - 1}）"
+            raise IndexError(msg)
 
 
 def _calculate_matching_score(
@@ -170,7 +211,14 @@ def _calculate_matching_score(
 
     Returns:
         (合計スコア, マッチングのリスト)のタプル
+
+    Raises:
+        IndexError: インデックスが範囲外の場合
     """
+    # インデックスの検証
+    _validate_indices(answer_indices, len(answers), "模範解答")
+    _validate_indices(student_indices, len(students), "学習者解答")
+
     total_score = 0
     matching = []
 
@@ -182,21 +230,25 @@ def _calculate_matching_score(
     return total_score, matching
 
 
-def _find_best_matching_case1(
+def _find_best_matching_generic(
     answers: List[Link],
     students: List[Link],
-    n_answers: int,
-    answer_range: List[int],
+    fixed_indices: List[int],
+    selection_pool_size: int,
+    selection_count: int,
+    fixed_role: str,
     initial_best_score: int,
 ) -> Tuple[int, List[Tuple[int, int]], List[int], List[int]]:
     """
-    Case 1: 模範解答数 ≤ 学習者解答数の最適マッチングを探索
+    汎用的な最適マッチング探索関数（Case 1とCase 2を統合）
 
     Args:
         answers: 模範解答リンクのリスト
         students: 学習者解答リンクのリスト
-        n_answers: 模範解答の数
-        answer_range: 模範解答のインデックス範囲
+        fixed_indices: 固定されるインデックスのリスト
+        selection_pool_size: 選択元のプールサイズ
+        selection_count: 選択する数
+        fixed_role: 固定される側の役割 ('answer' または 'student')
         initial_best_score: 初期の最良スコア
 
     Returns:
@@ -206,60 +258,30 @@ def _find_best_matching_case1(
     best_matching: List[Tuple[int, int]] = []
     best_answer_indices: List[int] = []
     best_student_indices: List[int] = []
-    n_students = len(students)
 
-    for selected_student_indices in combinations(range(n_students), n_answers):
-        for student_perm in permutations(selected_student_indices):
+    # 選択対象のインデックスの組み合わせを生成
+    for selected_indices in combinations(range(selection_pool_size), selection_count):
+        # 各組み合わせの順列を試行
+        for perm_indices in permutations(selected_indices):
+            # fixed_roleに基づいてanswer/studentのインデックスリストを決定
+            if fixed_role == "answer":
+                answer_idx_list = fixed_indices
+                student_idx_list = list(perm_indices)
+            else:  # fixed_role == 'student'
+                answer_idx_list = list(perm_indices)
+                student_idx_list = fixed_indices
+
+            # マッチングスコアを計算
             total_score, current_matching = _calculate_matching_score(
-                answers, students, answer_range, list(student_perm)
+                answers, students, answer_idx_list, student_idx_list
             )
 
+            # より良いスコアが見つかった場合、更新
             if total_score > best_score:
                 best_score = total_score
                 best_matching = current_matching
-                best_answer_indices = answer_range
-                best_student_indices = list(student_perm)
-
-    return best_score, best_matching, best_answer_indices, best_student_indices
-
-
-def _find_best_matching_case2(
-    answers: List[Link],
-    students: List[Link],
-    n_students: int,
-    student_range: List[int],
-    initial_best_score: int,
-) -> Tuple[int, List[Tuple[int, int]], List[int], List[int]]:
-    """
-    Case 2: 模範解答数 > 学習者解答数の最適マッチングを探索
-
-    Args:
-        answers: 模範解答リンクのリスト
-        students: 学習者解答リンクのリスト
-        n_students: 学習者解答の数
-        student_range: 学習者解答のインデックス範囲
-        initial_best_score: 初期の最良スコア
-
-    Returns:
-        (最良スコア, 最良マッチング, 模範解答インデックス, 学習者解答インデックス)
-    """
-    best_score = initial_best_score
-    best_matching: List[Tuple[int, int]] = []
-    best_answer_indices: List[int] = []
-    best_student_indices: List[int] = []
-    n_answers = len(answers)
-
-    for selected_answer_indices in combinations(range(n_answers), n_students):
-        for answer_perm in permutations(selected_answer_indices):
-            total_score, current_matching = _calculate_matching_score(
-                answers, students, list(answer_perm), student_range
-            )
-
-            if total_score > best_score:
-                best_score = total_score
-                best_matching = current_matching
-                best_answer_indices = list(answer_perm)
-                best_student_indices = student_range
+                best_answer_indices = answer_idx_list
+                best_student_indices = student_idx_list
 
     return best_score, best_matching, best_answer_indices, best_student_indices
 

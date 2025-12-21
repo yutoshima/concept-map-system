@@ -13,6 +13,7 @@ from .formatting import (
     format_score_display,
     join_output,
 )
+from .proposition_processor import decompose_qualifiers
 from .result_formatter import ResultFormatter
 from .validation import (
     validate_link_type,
@@ -27,6 +28,7 @@ __all__ = [
     "ResultFormatter",
     "create_separator",
     "create_title_block",
+    "decompose_qualifiers",
     "format_f_metrics",
     "format_score_display",
     "join_output",

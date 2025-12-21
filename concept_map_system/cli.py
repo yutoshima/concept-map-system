@@ -79,7 +79,9 @@ def list_algorithms() -> None:
             print(f"  説明: {info['description']}")
             print("  オプション:")
             for opt_name, opt_def in info["supported_options"].items():
-                print(f"    --{opt_name}: {opt_def['help']} (デフォルト: {opt_def['default']})")
+                # snake_caseをkebab-caseに変換してCLI形式で表示
+                cli_opt_name = opt_name.replace("_", "-")
+                print(f"    --{cli_opt_name}: {opt_def['help']} (デフォルト: {opt_def['default']})")
 
     print_colored("\n" + constants.SEPARATOR_LONG, "cyan")
 
@@ -102,6 +104,10 @@ def run_single_algorithm(args: argparse.Namespace) -> int:
         # アルゴリズム固有のオプションを追加
         if hasattr(args, "cross_link_score") and args.cross_link_score is not None:
             options["cross_link_score"] = args.cross_link_score
+        if hasattr(args, "expansion_mode") and args.expansion_mode is not None:
+            options["expansion_mode"] = args.expansion_mode
+        if hasattr(args, "simple_score_only") and args.simple_score_only:
+            options["simple_score_only"] = args.simple_score_only
 
         # 実行
         executor = SequentialExecutor()
@@ -123,8 +129,26 @@ def run_single_algorithm(args: argparse.Namespace) -> int:
         print_colored(f"\n✗ エラー: {result.error}", "red")
         return 1
 
+    except FileNotFoundError as e:
+        print_colored(f"\n✗ ファイルが見つかりません: {e!s}", "red")
+        return 1
+    except (OSError, IOError) as e:
+        print_colored(f"\n✗ ファイルの読み書きエラー: {e!s}", "red")
+        if args.debug:
+            traceback.print_exc()
+        return 1
+    except ValueError as e:
+        print_colored(f"\n✗ 無効な設定値です: {e!s}", "red")
+        if args.debug:
+            traceback.print_exc()
+        return 1
+    except ImportError as e:
+        print_colored(f"\n✗ 必要なモジュールが見つかりません: {e!s}", "red")
+        if args.debug:
+            traceback.print_exc()
+        return 1
     except Exception as e:
-        print_colored(f"\n✗ エラー: {e!s}", "red")
+        print_colored(f"\n✗ 予期しないエラー: {e!s}", "red")
         if args.debug:
             traceback.print_exc()
         return 1
@@ -157,6 +181,10 @@ def run_multiple_algorithms(args: argparse.Namespace) -> int:
         # アルゴリズム固有のオプションを追加
         if hasattr(args, "cross_link_score") and args.cross_link_score is not None:
             options["cross_link_score"] = args.cross_link_score
+        if hasattr(args, "expansion_mode") and args.expansion_mode is not None:
+            options["expansion_mode"] = args.expansion_mode
+        if hasattr(args, "simple_score_only") and args.simple_score_only:
+            options["simple_score_only"] = args.simple_score_only
 
         # 実行
         results = executor.execute_multiple(
@@ -201,8 +229,26 @@ def run_multiple_algorithms(args: argparse.Namespace) -> int:
 
         return 0 if success_count == len(results) else 1
 
+    except FileNotFoundError as e:
+        print_colored(f"\n✗ ファイルが見つかりません: {e!s}", "red")
+        return 1
+    except (OSError, IOError) as e:
+        print_colored(f"\n✗ ファイルの読み書きエラー: {e!s}", "red")
+        if args.debug:
+            traceback.print_exc()
+        return 1
+    except ValueError as e:
+        print_colored(f"\n✗ 無効な設定値です: {e!s}", "red")
+        if args.debug:
+            traceback.print_exc()
+        return 1
+    except ImportError as e:
+        print_colored(f"\n✗ 必要なモジュールが見つかりません: {e!s}", "red")
+        if args.debug:
+            traceback.print_exc()
+        return 1
     except Exception as e:
-        print_colored(f"\n✗ エラー: {e!s}", "red")
+        print_colored(f"\n✗ 予期しないエラー: {e!s}", "red")
         if args.debug:
             traceback.print_exc()
         return 1
@@ -283,6 +329,18 @@ def _create_argument_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="[Novak専用] 交差リンク（Conflict）1つあたりの点数 (0-4点)",
+    )
+    parser.add_argument(
+        "--expansion-mode",
+        type=str,
+        default=None,
+        choices=["none", "qualifier", "junction"],
+        help="展開モード: none（展開なし）, qualifier（Qualifier方式）, junction（Junction方式、デフォルト）",
+    )
+    parser.add_argument(
+        "--simple-score-only",
+        action="store_true",
+        help="[LEA専用] F値などの詳細指標を計算せず、素点のみを計算",
     )
 
     return parser

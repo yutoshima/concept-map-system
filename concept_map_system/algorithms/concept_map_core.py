@@ -8,6 +8,12 @@
 - CSVファイルの読み込み
 - 命題の展開（限定構造の分解）
 - ノードマッチングのサポート
+
+クラス階層:
+    BaseConceptMapScorer - データ読み込みと展開処理の基底クラス
+    └── SimplePropositionScorer - 命題単位採点の基底クラス
+        ├── McClureScorer (mcclure_algorithm.py) - McClure方式実装
+        └── NovakScorer (novak_algorithm.py) - Novak方式実装
 """
 
 from collections import defaultdict
@@ -51,6 +57,43 @@ class BaseConceptMapScorer:
         self.student_data: List[PropositionData] = []
         self.master_map: List[ExpandedProposition] = []
         self.student_map: List[ExpandedProposition] = []
+        self._expansion_mode: str = constants.ExpansionModes.JUNCTION  # デフォルトはJunction方式
+
+    def set_expansion_mode(self, mode: str) -> None:
+        """
+        展開モードを設定
+
+        Args:
+            mode: 展開モード
+                - ExpansionModes.NONE: 展開しない
+                - ExpansionModes.QUALIFIER: 限定分解（Qualifierリンクを使用）
+                - ExpansionModes.JUNCTION: Junction方式の展開（デフォルト）
+
+        Raises:
+            ValueError: 無効なモードが指定された場合
+        """
+        valid_modes = {
+            constants.ExpansionModes.NONE,
+            constants.ExpansionModes.QUALIFIER,
+            constants.ExpansionModes.JUNCTION,
+        }
+        if mode not in valid_modes:
+            msg = f"無効な展開モード: {mode}。有効な値: {valid_modes}"
+            raise ValueError(msg)
+        self._expansion_mode = mode
+
+    def set_decompose_qualifiers(self, enabled: bool) -> None:
+        """
+        限定分解モードを設定（後方互換性のため）
+
+        Args:
+            enabled: Trueの場合、限定を分解する
+        """
+        self._expansion_mode = (
+            constants.ExpansionModes.QUALIFIER
+            if enabled
+            else constants.ExpansionModes.JUNCTION
+        )
 
     def load_csv(self, filepath: str) -> List[PropositionData]:
         """
@@ -310,12 +353,53 @@ class BaseConceptMapScorer:
 
         for row in csv_data:
             if row.get("antes") and row.get("conq"):
-                expanded = self.expand_proposition(row)
-                all_props.extend(expanded)
+                processed = self._process_single_row(row)
+                all_props.extend(processed)
 
         # 重複を除去（antes, conq, typeの組み合わせで判定）
+        return self._remove_duplicates(all_props)
+
+    def _process_single_row(self, row: PropositionData) -> List[ExpandedProposition]:
+        """
+        単一の行を処理
+
+        Args:
+            row: CSVから読み込んだ行データ
+
+        Returns:
+            処理後の命題リスト
+        """
+        if self._expansion_mode == constants.ExpansionModes.NONE:
+            # 展開しない場合は、そのまま返す
+            return [
+                {
+                    "id": row["id"],
+                    "original_id": row["id"],
+                    "is_expanded": False,
+                    "antes": row["antes"],
+                    "conq": row["conq"],
+                    "type": row.get("type", ""),
+                }
+            ]
+
+        # Junction方式またはQualifier方式の場合は展開
+        # （Qualifier方式の場合は、load_data内で既に分解済み）
+        return self.expand_proposition(row)
+
+    def _remove_duplicates(
+        self, props: List[ExpandedProposition]
+    ) -> List[ExpandedProposition]:
+        """
+        重複する命題を除去
+
+        Args:
+            props: 命題リスト
+
+        Returns:
+            重複除去後の命題リスト
+        """
         unique_props: Dict[str, ExpandedProposition] = {}
-        for prop in all_props:
+        for prop in props:
             key = f"{prop['antes']}_{prop['conq']}_{prop.get('type', '')}"
             if key not in unique_props:
                 unique_props[key] = prop
@@ -438,6 +522,17 @@ class BaseConceptMapScorer:
         """
         self.master_data = self.load_csv(master_file)
         self.student_data = self.load_csv(student_file)
+
+        # 限定分解モードの場合は、展開前に分解処理を適用
+        if self._expansion_mode == constants.ExpansionModes.QUALIFIER:
+            from ..utils import decompose_qualifiers
+
+            logger.debug("限定分解モード（Qualifier）で命題を分解しています...")
+            self.master_data = cast(List[PropositionData], decompose_qualifiers(self.master_data))
+            self.student_data = cast(
+                List[PropositionData], decompose_qualifiers(self.student_data)
+            )
+
         self.master_map = self.process_map_data(self.master_data)
         self.student_map = self.process_map_data(self.student_data)
 
@@ -495,27 +590,6 @@ class BaseConceptMapScorer:
         )
 
         return {"precision": precision, "recall": recall, "f_value": f_value}
-
-    def score_all(
-        self,
-        student_map: Optional[List[ExpandedProposition]] = None,
-        master_map: Optional[List[ExpandedProposition]] = None,
-    ) -> ScoringResult:
-        """
-        全命題を採点（サブクラスで実装）
-
-        Args:
-            student_map: 生徒の命題マップ（Noneの場合は self.student_map を使用）
-            master_map: 模範の命題マップ（Noneの場合は self.master_map を使用）
-
-        Returns:
-            採点結果の辞書
-
-        Raises:
-            NotImplementedError: サブクラスで実装されていない場合
-        """
-        msg = "サブクラスで score_all メソッドを実装してください"
-        raise NotImplementedError(msg)
 
 
 # ============================================================================
@@ -720,6 +794,14 @@ class SimplePropositionScorer(BaseConceptMapScorer):
     ) -> ScoringResult:
         """
         全命題を採点（共通実装）
+
+        このメソッドは採点プロセスを6つのステップでオーケストレーションします：
+        1. パラメータ解決 - Noneの場合はインスタンス変数を使用
+        2. 命題採点 - 各命題を個別に採点してスコアと統計を収集
+        3. 追加スコア計算 - アルゴリズム固有の追加得点を計算（オプション）
+        4. 最終スコア計算 - 総合得点、最大得点、達成率を算出
+        5. 評価指標計算 - Precision、Recall、F値を計算
+        6. 結果構築 - すべての情報を結果辞書にまとめる
 
         Args:
             student_map: 生徒の命題マップ

@@ -54,17 +54,29 @@ concept_map_system/
 │   ├── algorithm_registry.py
 │   ├── executor.py
 │   ├── constants.py
+│   ├── types.py
+│   ├── exceptions.py
 │   └── logging_config.py
 ├── algorithms/              # アルゴリズム実装
 │   ├── __init__.py
+│   ├── concept_map_core.py
 │   ├── mcclure_algorithm.py
 │   ├── novak_algorithm.py
-│   ├── wlea_algorithm.py
+│   ├── lea_algorithm.py
+│   ├── lea_core.py
 │   └── custom_algorithm_template.py
+├── utils/                   # ユーティリティ
+│   ├── __init__.py
+│   ├── csv_loader.py
+│   ├── formatting.py
+│   ├── proposition_processor.py
+│   ├── result_formatter.py
+│   └── validation.py
 └── tests/                   # テスト
     ├── __init__.py
     ├── test_algorithm_registry.py
-    └── test_base_algorithm.py
+    ├── test_base_algorithm.py
+    └── test_formatting.py
 ```
 
 ## 開発ワークフロー

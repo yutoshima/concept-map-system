@@ -53,7 +53,10 @@ class NovakScorer(SimplePropositionScorer):
             cross_link_score: 交差リンク（conflict）1つあたりの点数（0-4点、デフォルト0）
         """
         super().__init__()
-        self.cross_link_point_per_item = max(0, min(4, cross_link_score))  # 0-4点に制限
+        self.cross_link_point_per_item = max(
+            constants.ScoringConstants.CROSS_LINK_MIN_SCORE,
+            min(constants.ScoringConstants.CROSS_LINK_MAX_SCORE, cross_link_score),
+        )
 
     def count_conflicts(self, student_map: List[ExpandedProposition]) -> int:
         """
@@ -275,6 +278,18 @@ class NovakAlgorithm(BaseAlgorithm):
             description="Novak (ノバック) 概念マップ採点方式。完全一致のみ採点し、限定構造に加点。",
         )
 
+    def _extract_scorer_parameters(self, **kwargs: Any) -> Dict[str, Any]:
+        """
+        Novak固有のパラメータを抽出
+
+        Args:
+            **kwargs: 実行時に渡されたキーワード引数
+
+        Returns:
+            Dict[str, Any]: NovakScorerのコンストラクタに渡すパラメータ
+        """
+        return {"cross_link_score": kwargs.get("cross_link_score", 0)}
+
     def execute(self, master_file: str, student_file: str, **kwargs: Any) -> Dict[str, Any]:
         """
         Novak方式で採点を実行
@@ -282,7 +297,7 @@ class NovakAlgorithm(BaseAlgorithm):
         Args:
             master_file: 模範解答のCSVファイル
             student_file: 生徒の回答のCSVファイル
-            **kwargs: 追加のオプション（verbose, debug, cross_link_scoreなど）
+            **kwargs: 追加のオプション（verbose, debug, cross_link_score, expansion_modeなど）
 
         Returns:
             採点結果
@@ -290,23 +305,8 @@ class NovakAlgorithm(BaseAlgorithm):
         Raises:
             Exception: 採点中にエラーが発生した場合
         """
-        # ファイルの検証
-        self.validate_files(master_file, student_file)
-
-        # オプションの取得
-        options = self._extract_execution_options(**kwargs)
-        verbose = options["verbose"]
-        debug = options["debug"]
-
-        # 交差リンクスコアの取得（デフォルト0）
-        cross_link_score = kwargs.get("cross_link_score", 0)
-
-        # NovakScorerのインスタンスを作成
-        scorer = NovakScorer(cross_link_score=cross_link_score)
-
-        # 共通の実行ロジックとエラーハンドリング
-        return self._execute_scoring_with_error_handling(
-            scorer, master_file, student_file, "Novak", verbose, debug
+        return self.execute_with_scorer(
+            master_file, student_file, scorer_factory=NovakScorer, algorithm_name="Novak", **kwargs
         )
 
     def get_supported_options(self) -> Dict[str, Dict[str, Any]]:
@@ -316,11 +316,28 @@ class NovakAlgorithm(BaseAlgorithm):
         Returns:
             オプション定義
         """
+        from ..core import constants
+
         options = self.get_common_options()
         options["cross_link_score"] = {
             "type": int,
             "default": 0,
             "help": "交差リンク（Conflict）1つあたりの点数 (0-4点、デフォルト0)",
+        }
+        options["expansion_mode"] = {
+            "type": str,
+            "default": constants.ExpansionModes.JUNCTION,
+            "choices": [
+                constants.ExpansionModes.NONE,
+                constants.ExpansionModes.QUALIFIER,
+                constants.ExpansionModes.JUNCTION,
+            ],
+            "help": (
+                "展開モード: "
+                f"'{constants.ExpansionModes.NONE}'=展開しない, "
+                f"'{constants.ExpansionModes.QUALIFIER}'=限定分解(Qualifierリンク使用), "
+                f"'{constants.ExpansionModes.JUNCTION}'=Junction方式(デフォルト)"
+            ),
         }
         return options
 

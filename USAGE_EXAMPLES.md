@@ -75,6 +75,12 @@ mcclure で採点を実行中...
 ----------------------------------------
 合計得点: 20/30 (66.7%)
 ----------------------------------------
+
+評価指標:
+  F値:        0.800
+  適合率:     0.875
+  再現率:     0.737
+----------------------------------------
 ```
 
 ### 例2: 詳細表示モード
@@ -179,7 +185,7 @@ python -m concept_map_system cli \
 
 ```bash
 python -m concept_map_system cli \
-  --algorithms mcclure,novak,wlea \
+  --algorithms mcclure,novak,lea \
   --parallel \
   --workers 4 \
   master.csv \
@@ -362,7 +368,7 @@ python -m concept_map_system cli -a mcclure nonexistent.csv student.csv
 
 この統合システムは以下の機能を提供します：
 
-- **複数のアルゴリズム**: McClure、Novak、WLEAなど
+- **複数のアルゴリズム**: McClure、Novak、LEAなど
 - **並列実行**: 高速な採点処理
 - **CLI & GUI**: 2つのインターフェース
 - **拡張性**: カスタムアルゴリズムの追加が容易

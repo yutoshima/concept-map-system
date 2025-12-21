@@ -1,10 +1,10 @@
 # 概念マップ採点統合システム
 
-McClure、Novak、WLEA、data_validation、および独自アルゴリズムを統合した採点システムです。
+McClure、Novak、LEA、data_validation、および独自アルゴリズムを統合した採点システムです。
 
 ## 特徴
 
-- **複数のアルゴリズム対応**: McClure、Novak、WLEAなど複数の採点方式をサポート
+- **複数のアルゴリズム対応**: McClure、Novak、LEAなど複数の採点方式をサポート
 - **並列実行**: 複数のアルゴリズムを同時に実行可能
 - **拡張可能**: 独自のアルゴリズムを簡単に追加できる
 - **CLI & GUI**: コマンドラインとGUIの両方をサポート
@@ -24,28 +24,46 @@ concept_map_system/
 │   ├── algorithm_registry.py # アルゴリズムレジストリ
 │   ├── executor.py          # 並列実行エンジン
 │   ├── constants.py         # 定数定義
+│   ├── types.py             # 型定義
+│   ├── exceptions.py        # カスタム例外
 │   └── logging_config.py    # ログ設定
 ├── algorithms/              # アルゴリズム実装
 │   ├── __init__.py
-│   ├── mcclure_algorithm.py       # McClure方式
-│   ├── novak_algorithm.py         # Novak方式
-│   ├── wlea_algorithm.py          # WLEA (Weighted Link Evaluation Algorithm)
+│   ├── concept_map_core.py  # 基底スコアラークラス
+│   ├── mcclure_algorithm.py # McClure方式
+│   ├── novak_algorithm.py   # Novak方式
+│   ├── lea_algorithm.py     # LEA (Link Evaluation Algorithm)
+│   ├── lea_core.py          # LEAコアロジック
 │   └── custom_algorithm_template.py # カスタムアルゴリズムテンプレート
+├── utils/                   # ユーティリティ
+│   ├── __init__.py
+│   ├── csv_loader.py        # CSVデータ読み込み
+│   ├── formatting.py        # 出力フォーマット
+│   ├── proposition_processor.py # 命題処理
+│   ├── result_formatter.py  # 結果フォーマット
+│   └── validation.py        # データ検証
 └── tests/                   # テスト
     ├── __init__.py
     ├── test_algorithm_registry.py
-    └── test_base_algorithm.py
+    ├── test_base_algorithm.py
+    └── test_formatting.py
 ```
 
 ## インストール
 
-このシステムは以下のパッケージに依存しています：
+### 依存パッケージ
+
+このシステムはPython標準ライブラリで動作しますが、一部の機能には追加パッケージが必要です：
+
+**コア機能（必須）:**
+- Python 3.8以降の標準ライブラリのみ
+
+**オプション:**
+- `pandas` - LEAアルゴリズムの一部機能で使用（必須ではありません）
 
 ```bash
-# 既存の採点システム
-- scoring/concept_map_scorer/
-- wlea/
-- data_validation/
+# オプション: pandasをインストールする場合
+pip install pandas
 ```
 
 ## 使用方法
@@ -123,8 +141,20 @@ McClure (1999) の採点基準に基づく採点方式。
 **評価指標:**
 - F値、適合率（Precision）、再現率（Recall）を自動計算
 
+**展開モードオプション (`expansion_mode`):**
+- `junction` (デフォルト): Junction方式で限定構造を展開
+- `qualifier`: Qualifierリンクを使用して限定を分解
+- `none`: 展開しない
+
 ```bash
+# デフォルト（Junction方式）
 python -m concept_map_system cli -a mcclure master.csv student.csv
+
+# Qualifier方式で限定を分解
+python -m concept_map_system cli -a mcclure --expansion-mode qualifier master.csv student.csv
+
+# 展開しない
+python -m concept_map_system cli -a mcclure --expansion-mode none master.csv student.csv
 ```
 
 #### Novak方式
@@ -138,11 +168,30 @@ Novak (ノバック) の採点基準に基づく採点方式。
 **評価指標:**
 - F値、適合率（Precision）、再現率（Recall）を自動計算
 
+**展開モードオプション (`expansion_mode`):**
+- `junction` (デフォルト): Junction方式で限定構造を展開
+- `qualifier`: Qualifierリンクを使用して限定を分解
+- `none`: 展開しない
+
+**交差リンクオプション (`cross_link_score`):**
+- 交差リンク（Conflict）1つあたりの点数を指定（0-4点、デフォルト: 0）
+- Conflictリンクに点数を付与する場合に使用
+
 ```bash
+# デフォルト（Junction方式）
 python -m concept_map_system cli -a novak master.csv student.csv
+
+# Qualifier方式で限定を分解
+python -m concept_map_system cli -a novak --expansion-mode qualifier master.csv student.csv
+
+# 展開しない
+python -m concept_map_system cli -a novak --expansion-mode none master.csv student.csv
+
+# 交差リンク（Conflict）に2点を付与
+python -m concept_map_system cli -a novak --cross-link-score 2 master.csv student.csv
 ```
 
-#### WLEA (Weighted Link Evaluation Algorithm)
+#### LEA (Link Evaluation Algorithm)
 
 因果関係リンク評価システム。最適マッチングによりF値、再現率、適合率を計算。
 
@@ -155,11 +204,41 @@ python -m concept_map_system cli -a novak master.csv student.csv
 
 ```bash
 # 通常モード（F値などを計算）
-python -m concept_map_system cli -a wlea master.csv student.csv
+python -m concept_map_system cli -a lea master.csv student.csv
 
 # 素点のみモード
-python -m concept_map_system cli -a wlea --simple_score_only master.csv student.csv
+python -m concept_map_system cli -a lea --simple-score-only master.csv student.csv
 ```
+
+### 4. 展開モードについて
+
+McClureとNovakアルゴリズムでは、限定構造（複数のantesノードを持つ命題）の処理方法を選択できます。
+
+#### Junction方式（デフォルト）
+
+Junctionノード（仮想ノード）を使用して限定構造を展開します。
+
+**例:** `0 1 2 If`（antes: "0 1", conq: "2", type: "If"）
+- `0 → t_to_2` (Junction)
+- `1 → t_to_2` (Junction)
+- `t_from_0_1 → 2` (If)
+
+#### Qualifier方式
+
+Qualifierリンクを使用して限定を分解します。
+
+**例:** `0 1 2 If`（antes: "0 1", conq: "2", type: "If"）
+- `0 → 2` (If) - メインリンク
+- `0 → 1` (Qualifier) - 限定リンク
+
+**例:** `0 1 2 3 Because`（antes: "0 1 2", conq: "3", type: "Because"）
+- `0 → 3` (Because) - メインリンク
+- `0 → 1` (Qualifier) - 限定リンク
+- `0 → 2` (Qualifier) - 限定リンク
+
+#### 展開なし
+
+限定構造をそのまま扱います。antesに複数のノードが含まれていてもそのまま採点に使用されます。
 
 ## カスタムアルゴリズムの追加
 
@@ -311,12 +390,16 @@ python -m concept_map_system cli -a mcclure -d master.csv student.csv
 
 ### サポートするPythonバージョン
 
-Python 3.7以降
+Python 3.8以降
 
 ### 依存パッケージ
 
-- tkinter (GUI用、標準ライブラリ)
-- 既存の採点システムパッケージ (scoring, wlea, data_validation)
+**必須:**
+- Python 3.8以降の標準ライブラリ
+- tkinter (GUI用、通常はPythonに同梱)
+
+**オプション:**
+- pandas (LEAアルゴリズムの一部機能で使用)
 
 ## ライセンス
 
@@ -330,7 +413,7 @@ Python 3.7以降
 
 問題が発生した場合は、以下を確認してください：
 
-1. Pythonバージョン (3.7以降)
+1. Pythonバージョン (3.8以降)
 2. 依存パッケージのインストール状況
 3. CSVファイルのフォーマット
 
@@ -339,14 +422,14 @@ Python 3.7以降
 ### v1.1.0 (2025)
 
 - **新機能**: McClureとNovakアルゴリズムにF値、適合率、再現率の計算を追加
-- **新機能**: WLEAに素点のみモード（simple_score_only）を追加
+- **新機能**: LEAに素点のみモード（simple_score_only）を追加
 - **改善**: アルゴリズム結果の表示フォーマットを更新
-- **変更**: Link EvaluationアルゴリズムをWLEA (Weighted Link Evaluation Algorithm) に名称変更
+- **変更**: WLEAをLEA (Link Evaluation Algorithm) に名称変更
 
 ### v1.0.0 (2025)
 
 - 初回リリース
-- McClure、Novak、WLEAアルゴリズムをサポート
+- McClure、Novak、LEAアルゴリズムをサポート
 - CLI & GUIインターフェース
 - 並列実行サポート
 - カスタムアルゴリズムのサポート

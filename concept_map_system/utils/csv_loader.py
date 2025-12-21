@@ -57,9 +57,6 @@ class CSVLoader:
 
         try:
             with file_path.open(encoding=constants.FILE_ENCODING) as f:
-                print(f"DEBUG: Reading first line of {filepath}:")
-                print(f.readline())
-                f.seek(0)  # Reset file pointer after reading the first line
                 reader = csv.DictReader(f)
 
                 # ヘッダー確認

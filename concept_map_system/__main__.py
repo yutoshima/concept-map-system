@@ -14,7 +14,24 @@ from .gui import main as gui_main
 
 
 def main():
-    """メイン関数"""
+    """
+    概念マップ採点統合システムのメインエントリーポイント
+
+    このプログラムは`python -m concept_map_system`コマンドで起動され、
+    CLIモードまたはGUIモードのいずれかで実行されます。
+
+    実行モード:
+        - cli: コマンドラインインターフェース（デフォルト）
+        - gui: グラフィカルユーザーインターフェース
+
+    終了コード:
+        - 0: 正常終了
+        - 1: エラー発生（CLIモードのみ）
+
+    使用例:
+        python -m concept_map_system cli -a mcclure master.csv student.csv
+        python -m concept_map_system gui
+    """
     parser = argparse.ArgumentParser(
         description="概念マップ採点統合システム",
         formatter_class=argparse.RawDescriptionHelpFormatter,

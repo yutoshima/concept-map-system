@@ -11,10 +11,12 @@ import threading
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext, ttk
+from typing import Any, Dict, List, Optional
 
 # アルゴリズムをインポート（自動登録）
 from .core import (
     AlgorithmRegistry,
+    ExecutionResult,
     ParallelExecutor,
     SequentialExecutor,
     constants,
@@ -30,7 +32,7 @@ logger = get_logger(__name__)
 class ConceptMapSystemGUI:
     """概念マップ採点統合システムGUIアプリケーション"""
 
-    def __init__(self, root):
+    def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title(constants.APP_TITLE)
         self.root.geometry("1000x800")
@@ -43,15 +45,21 @@ class ConceptMapSystemGUI:
         self.parallel = tk.BooleanVar(value=False)
 
         # アルゴリズム選択用の変数
-        self.algorithm_vars = {}
+        self.algorithm_vars: Dict[str, tk.BooleanVar] = {}
 
         # 結果
-        self.results = {}
+        self.results: Dict[str, Any] = {}
+
+        # 実行中のスレッド
+        self.running_thread: Optional[threading.Thread] = None
 
         self.setup_ui()
         self.load_algorithms()
 
-    def setup_ui(self):
+        # ウィンドウクローズ時のクリーンアップを設定
+        self.root.protocol("WM_DELETE_WINDOW", self._on_closing)
+
+    def setup_ui(self) -> None:
         """UIをセットアップ"""
         main_frame = self._setup_main_frame()
         self._setup_file_selection_frame(main_frame)
@@ -247,12 +255,27 @@ class ConceptMapSystemGUI:
             logger.warning("アルゴリズムが選択されていません")
             return
 
-        # スレッドで実行
-        thread = threading.Thread(target=self._run_scoring_thread, args=(selected_algorithms,))
-        thread.start()
+        # 既に実行中のスレッドがある場合は警告
+        if self.running_thread and self.running_thread.is_alive():
+            messagebox.showwarning("警告", "既に採点が実行中です")
+            logger.warning("採点が既に実行中です")
+            return
 
-    def _run_scoring_thread(self, selected_algorithms: list) -> None:
+        # スレッドで実行（daemon=Trueで、メインスレッド終了時に自動終了）
+        self.running_thread = threading.Thread(
+            target=self._run_scoring_thread, args=(selected_algorithms,), daemon=True
+        )
+        self.running_thread.start()
+
+    def _run_scoring_thread(self, selected_algorithms: List[str]) -> None:
         """採点をバックグラウンドで実行"""
+        # 防御的プログラミング: 空のアルゴリズムリストをチェック
+        if not selected_algorithms:
+            logger.error("_run_scoring_threadが空のアルゴリズムリストで呼び出されました")
+            self.status_var.set(constants.STATUS_ERROR)
+            messagebox.showerror("エラー", "アルゴリズムが選択されていません")
+            return
+
         try:
             self.status_var.set(constants.STATUS_RUNNING)
             self.progress.start()
@@ -304,11 +327,17 @@ class ConceptMapSystemGUI:
                 f"必要なモジュールが見つかりません:\n{e!s}",
                 f"インポートエラー: {e!s}",
             )
+        except ValueError as e:
+            error_msg = f"無効な設定値です:\n{e!s}"
+            self._handle_error(error_msg, f"設定値エラー: {e!s}")
+        except (OSError, IOError) as e:
+            error_msg = f"ファイルの読み書きエラー:\n{e!s}"
+            self._handle_error(error_msg, f"I/Oエラー: {e!s}")
         except Exception as e:
             error_msg = constants.ERROR_DURING_SCORING.format(str(e))
             self._handle_error(error_msg, "採点中に予期しないエラーが発生しました", exception=True)
 
-    def display_results(self, results: list) -> None:
+    def display_results(self, results: List[ExecutionResult]) -> None:
         """結果を表示"""
         self.result_text.insert(tk.END, "\n" + constants.SEPARATOR_EXTRA_LONG + "\n")
         self.result_text.insert(tk.END, "採点結果サマリー\n")
@@ -347,10 +376,18 @@ class ConceptMapSystemGUI:
                 success_msg = constants.SUCCESS_FILE_SAVED.format(filename)
                 messagebox.showinfo("完了", success_msg)
                 logger.info(f"結果を保存しました: {filename}")
+            except (OSError, IOError) as e:
+                error_msg = constants.ERROR_DURING_SAVE.format(str(e))
+                messagebox.showerror("エラー", error_msg)
+                logger.error(f"ファイル保存エラー: {filename} - {e!s}")
+            except (TypeError, ValueError) as e:
+                error_msg = constants.ERROR_DURING_SAVE.format(str(e))
+                messagebox.showerror("エラー", error_msg)
+                logger.error(f"JSON変換エラー: {e!s}")
             except Exception as e:
                 error_msg = constants.ERROR_DURING_SAVE.format(str(e))
                 messagebox.showerror("エラー", error_msg)
-                logger.exception(f"保存中にエラーが発生しました: {filename}")
+                logger.exception(f"予期しないエラー (保存中): {filename}")
 
     def clear_results(self) -> None:
         """結果をクリア"""
@@ -358,6 +395,21 @@ class ConceptMapSystemGUI:
         self.results = {}
         self.status_var.set(constants.STATUS_READY)
         logger.info("結果をクリアしました")
+
+    def _on_closing(self) -> None:
+        """ウィンドウクローズ時のクリーンアップ処理"""
+        # 実行中のスレッドがある場合は確認
+        if self.running_thread and self.running_thread.is_alive():
+            if messagebox.askokcancel(
+                "確認", "採点が実行中です。終了してもよろしいですか？\n実行中の処理は中断されます。"
+            ):
+                logger.info("ユーザーが実行中に終了を選択しました")
+                self.root.destroy()
+            else:
+                logger.info("ユーザーが終了をキャンセルしました")
+        else:
+            logger.info("GUIアプリケーションを終了します")
+            self.root.destroy()
 
 
 def main() -> None:
