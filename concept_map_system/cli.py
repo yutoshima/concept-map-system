@@ -22,7 +22,12 @@ from .core import (
     setup_logging,
 )
 from .core.constants import ResultKeys
-from .utils import ResultFormatter
+from .utils import (
+    AcademicResultFormatter,
+    AcademicTableFormatter,
+    ResultFormatter,
+    export_to_file,
+)
 
 # アルゴリズムをインポートして登録
 from . import algorithms  # noqa: F401
@@ -69,21 +74,55 @@ def list_algorithms() -> None:
         print_colored("登録されているアルゴリズムはありません", "yellow")
         return
 
-    print_colored("\n利用可能なアルゴリズム:", "bold")
-    print_colored(constants.SEPARATOR_LONG, "cyan")
+    print()
+    print_colored("━" * 70, "cyan")
+    print_colored("利用可能なアルゴリズム", "bold")
+    print_colored("━" * 70, "cyan")
+    print()
 
-    for name in algorithms:
-        info = AlgorithmRegistry.get_algorithm_info(name)
-        if info:
-            print(f"\n{name}:")
-            print(f"  説明: {info['description']}")
-            print("  オプション:")
-            for opt_name, opt_def in info["supported_options"].items():
-                # snake_caseをkebab-caseに変換してCLI形式で表示
-                cli_opt_name = opt_name.replace("_", "-")
-                print(f"    --{cli_opt_name}: {opt_def['help']} (デフォルト: {opt_def['default']})")
+    # 推奨アルゴリズムと通常アルゴリズムを分類
+    recommended = ["mcclure", "lea"]
+    recommended_algos = [a for a in algorithms if a.lower() in recommended]
+    other_algos = [a for a in algorithms if a.lower() not in recommended]
 
-    print_colored("\n" + constants.SEPARATOR_LONG, "cyan")
+    # 推奨アルゴリズムを先に表示
+    if recommended_algos:
+        print_colored("【推奨アルゴリズム】", "green")
+        print()
+        for name in recommended_algos:
+            info = AlgorithmRegistry.get_algorithm_info(name)
+            if info:
+                print_colored(f"● {name.upper()}", "bold")
+                print(f"  {info['description']}")
+
+                # 主要なオプションのみ表示
+                key_options = ["expansion_mode", "simple_score_only"]
+                has_key_options = False
+                for opt_name, opt_def in info["supported_options"].items():
+                    if opt_name in key_options:
+                        if not has_key_options:
+                            print("  主要オプション:")
+                            has_key_options = True
+                        cli_opt_name = opt_name.replace("_", "-")
+                        print(f"    --{cli_opt_name}: {opt_def['help']}")
+                print()
+
+    # その他のアルゴリズム
+    if other_algos:
+        print_colored("【その他のアルゴリズム】", "yellow")
+        print()
+        for name in other_algos:
+            info = AlgorithmRegistry.get_algorithm_info(name)
+            if info:
+                print(f"● {name}")
+                print(f"  {info['description']}")
+                print()
+
+    print_colored("━" * 70, "cyan")
+    print()
+    print("詳細なオプションは以下で確認:")
+    print_colored("  python -m concept_map_system cli --help", "cyan")
+    print()
 
 
 def run_single_algorithm(args: argparse.Namespace) -> int:
@@ -95,7 +134,26 @@ def run_single_algorithm(args: argparse.Namespace) -> int:
         print("\n利用可能なアルゴリズムを表示するには: --list を使用してください")
         return 1
 
-    print_colored(f"\n{algorithm.name} で採点を実行中...", "cyan")
+    # 論文品質フォーマットの場合はメタデータを表示
+    if args.format != "standard":
+        options_dict = {}
+        if hasattr(args, "cross_link_score") and args.cross_link_score is not None:
+            options_dict["cross_link_score"] = args.cross_link_score
+        if hasattr(args, "expansion_mode") and args.expansion_mode is not None:
+            options_dict["expansion_mode"] = args.expansion_mode
+        if hasattr(args, "simple_score_only") and args.simple_score_only:
+            options_dict["simple_score_only"] = args.simple_score_only
+
+        metadata = AcademicResultFormatter.format_metadata(
+            args.algorithm, args.master_file, args.student_file, options_dict
+        )
+        print(metadata)
+    else:
+        print()
+        print_colored("━" * 70, "cyan")
+        print_colored(f"📝 {algorithm.name.upper()}方式 で採点開始", "bold")
+        print_colored("━" * 70, "cyan")
+        print()
 
     try:
         # オプションの準備
@@ -114,12 +172,28 @@ def run_single_algorithm(args: argparse.Namespace) -> int:
         result = executor.execute_single(algorithm, args.master_file, args.student_file, **options)
 
         if result.success:
-            print_colored(f"\n✓ 採点完了 ({result.execution_time:.2f}秒)", "green")
-
             # 結果を表示
             if result.result:
-                formatted = algorithm.format_results(result.result)
-                print(formatted)
+                if args.format == "standard":
+                    # 標準フォーマット
+                    formatted = algorithm.format_results(result.result)
+                    print(formatted)
+                    print()
+                    print_colored("━" * 70, "cyan")
+                    print_colored(f"✅ 採点完了 ({result.execution_time:.2f}秒)", "green")
+                    print_colored("━" * 70, "cyan")
+                else:
+                    # 論文品質フォーマット
+                    formatted = AcademicResultFormatter.format_result_summary(
+                        result.result, format_type=args.format
+                    )
+                    print(formatted)
+
+                # エクスポート
+                if args.export:
+                    export_to_file(formatted, args.export)
+                    print()
+                    print_colored(f"📄 結果をエクスポートしました: {args.export}", "green")
 
             # JSON出力
             if args.output:
@@ -159,21 +233,34 @@ def run_multiple_algorithms(args: argparse.Namespace) -> int:
     algorithm_names = args.algorithms.split(",")
     algorithm_names = [name.strip() for name in algorithm_names]
 
-    print_colored(f"\n{len(algorithm_names)}個のアルゴリズムを実行中...", "cyan")
-
     # 並列実行の選択
     executor: Union[ParallelExecutor, SequentialExecutor]
-    if args.parallel:
-        print_colored("並列実行モード", "cyan")
-        executor = ParallelExecutor(max_workers=args.workers, use_processes=args.use_processes)
+
+    if args.format == "standard":
+        print()
+        print_colored("━" * 70, "cyan")
+        print_colored(f"📊 {len(algorithm_names)}個のアルゴリズムで採点", "bold")
+        print_colored("━" * 70, "cyan")
+
+        if args.parallel:
+            print_colored("⚡ 並列実行モード（高速）", "green")
+            executor = ParallelExecutor(max_workers=args.workers, use_processes=args.use_processes)
+        else:
+            print_colored("🔄 逐次実行モード", "cyan")
+            executor = SequentialExecutor()
+        print()
     else:
-        print_colored("逐次実行モード", "cyan")
-        executor = SequentialExecutor()
+        if args.parallel:
+            executor = ParallelExecutor(max_workers=args.workers, use_processes=args.use_processes)
+        else:
+            executor = SequentialExecutor()
 
     try:
         # 進捗コールバック
         def progress_callback(message: str) -> None:
-            print(f"  → {message}")
+            if args.format == "standard":
+                print(f"  ✓ {message}")
+            # 論文形式の場合は進捗を表示しない（クリーンな出力のため）
 
         # オプションの準備
         options = {"verbose": args.verbose, "debug": args.debug}
@@ -196,26 +283,55 @@ def run_multiple_algorithms(args: argparse.Namespace) -> int:
         )
 
         # 結果の表示
-        print_colored("\n" + constants.SEPARATOR_LONG, "cyan")
-        print_colored("実行結果サマリー", "bold")
-        print_colored(constants.SEPARATOR_LONG, "cyan")
-
-        # ResultFormatterを使用して結果を処理
         processed = ResultFormatter.process_results(results)
         success_count = processed["success_count"]
         all_results = processed["all_results"]
 
-        # 各結果を表示
-        for formatted_entry in processed["formatted_results"]:
-            cli_output = ResultFormatter.format_result_for_cli(formatted_entry)
-            if formatted_entry["success"]:
-                print_colored(f"\n{cli_output}", "green")
-            else:
-                print_colored(f"\n{cli_output}", "red")
+        if args.format == "standard":
+            # 標準フォーマット
+            print()
+            print_colored("━" * 70, "cyan")
+            print_colored("📊 実行結果サマリー", "bold")
+            print_colored("━" * 70, "cyan")
 
-        # サマリーを表示
-        summary = ResultFormatter.format_success_summary(success_count, processed["total_count"])
-        print_colored(f"\n{summary}", "bold")
+            # 各結果を表示
+            for formatted_entry in processed["formatted_results"]:
+                cli_output = ResultFormatter.format_result_for_cli(formatted_entry)
+                if formatted_entry["success"]:
+                    print_colored(f"\n{cli_output}", "green")
+                else:
+                    print_colored(f"\n{cli_output}", "red")
+
+            # サマリーを表示
+            print()
+            print_colored("━" * 70, "cyan")
+            if success_count == processed["total_count"]:
+                print_colored(
+                    f"✅ すべて完了 ({success_count}/{processed['total_count']})", "green"
+                )
+            else:
+                print_colored(
+                    f"⚠️  完了: {success_count}/{processed['total_count']}", "yellow"
+                )
+            print_colored("━" * 70, "cyan")
+        else:
+            # 論文品質フォーマット：比較表を生成
+            print("\n")
+            comparison_data = []
+            for result in results:
+                if result.success and result.result:
+                    comparison_data.append((result.algorithm_name, result.result))
+
+            if comparison_data:
+                comparison_table = AcademicResultFormatter.format_comparison_table(
+                    comparison_data, format_type=args.format
+                )
+                print(comparison_table)
+
+                # エクスポート
+                if args.export:
+                    export_to_file(comparison_table, args.export)
+                    print_colored(f"\n✓ 比較表をエクスポートしました: {args.export}", "green")
 
         # JSON出力
         if args.output and all_results:
@@ -281,21 +397,39 @@ def _create_argument_parser() -> argparse.ArgumentParser:
         description=constants.APP_NAME,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-使用例:
-  # 単一のアルゴリズムを実行
-  python -m concept_map_system.cli -a mcclure master.csv student.csv
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+使用例
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-  # 複数のアルゴリズムを逐次実行
-  python -m concept_map_system.cli --algorithms mcclure,novak master.csv student.csv
+【基本的な使い方】
+  # McClure方式で採点（推奨）
+  python -m concept_map_system cli -a mcclure master.csv student.csv
 
-  # 複数のアルゴリズムを並列実行
-  python -m concept_map_system.cli --algorithms mcclure,novak --parallel master.csv student.csv
+  # LEA方式で採点
+  python -m concept_map_system cli -a lea master.csv student.csv
 
-  # すべてのアルゴリズムを並列実行
-  python -m concept_map_system.cli --all --parallel master.csv student.csv
+【論文用の高品質出力】
+  # ASCII表形式（スクリーンショット向け）
+  python -m concept_map_system cli -a mcclure --format ascii master.csv student.csv
 
-  # 利用可能なアルゴリズムの一覧を表示
-  python -m concept_map_system.cli --list
+  # LaTeX表形式（論文埋め込み用）
+  python -m concept_map_system cli -a mcclure --format latex --export table.tex master.csv student.csv
+
+【複数アルゴリズム比較】
+  # McClureとLEAを比較（表形式）
+  python -m concept_map_system cli --algorithms mcclure,lea --format ascii master.csv student.csv
+
+  # 並列実行で高速化
+  python -m concept_map_system cli --algorithms mcclure,lea --parallel master.csv student.csv
+
+【詳細情報】
+  # 利用可能なアルゴリズム一覧
+  python -m concept_map_system cli --list
+
+  # 詳細な結果表示
+  python -m concept_map_system cli -a mcclure -v master.csv student.csv
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
         """,
     )
 
@@ -322,6 +456,16 @@ def _create_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("-v", "--verbose", action="store_true", help="詳細な結果を表示")
     parser.add_argument("-d", "--debug", action="store_true", help="デバッグ情報を表示")
     parser.add_argument("-o", "--output", help="結果をJSONファイルに出力")
+    parser.add_argument(
+        "--format",
+        choices=["standard", "ascii", "latex", "markdown", "csv"],
+        default="standard",
+        help="出力フォーマット: standard（標準）, ascii（表形式）, latex（LaTeX表）, markdown（Markdown表）, csv（CSV形式）",
+    )
+    parser.add_argument(
+        "--export",
+        help="フォーマット済み結果をファイルにエクスポート（--formatで指定した形式）",
+    )
 
     # アルゴリズム固有のオプション
     parser.add_argument(

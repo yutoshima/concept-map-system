@@ -5,6 +5,11 @@
 共通のヘルパー関数とユーティリティを提供します。
 """
 
+from .academic_formatter import (
+    AcademicResultFormatter,
+    AcademicTableFormatter,
+    export_to_file,
+)
 from .csv_loader import CSVLoader
 from .formatting import (
     create_separator,
@@ -24,11 +29,14 @@ from .validation import (
 )
 
 __all__ = [
+    "AcademicResultFormatter",
+    "AcademicTableFormatter",
     "CSVLoader",
     "ResultFormatter",
     "create_separator",
     "create_title_block",
     "decompose_qualifiers",
+    "export_to_file",
     "format_f_metrics",
     "format_score_display",
     "join_output",
