@@ -72,11 +72,10 @@ class McClureScorer(SimplePropositionScorer):
                 return (self.SCORE_PERFECT_MATCH, f"完全一致 (模範ID: {master_id})")
 
         # 2. 向き不一致（2点）をチェック
+        # McClure基準: 向きが逆なら、タイプに関係なく2点
         for master_prop in master_map:
-            master_type = self.normalize_type(master_prop.get("type", ""))
-
-            # タイプは一致、ノードが逆向き
-            if master_type == student_type and self.nodes_match(
+            # ノードが逆向き（タイプは無関係）
+            if self.nodes_match(
                 student_antes,
                 student_conq,
                 master_prop["conq"],
@@ -87,12 +86,14 @@ class McClureScorer(SimplePropositionScorer):
 
         # 3. ラベル不一致（1点）をチェック
         for master_prop in master_map:
-            # ノードは一致、タイプが不一致
-            if self.nodes_match(
+            master_type = self.normalize_type(master_prop.get("type", ""))
+
+            # ノードは同じ向きで一致するが、タイプが不一致
+            if master_type != student_type and self.nodes_match(
                 student_antes, student_conq, master_prop["antes"], master_prop["conq"]
             ):
-                master_type = master_prop.get("type", "N/A")
-                return (self.SCORE_LABEL_MISMATCH, f"ラベル不一致 (模範: {master_type})")
+                master_type_display = master_prop.get("type", "N/A")
+                return (self.SCORE_LABEL_MISMATCH, f"ラベル不一致 (模範: {master_type_display})")
 
         # 4. それ以外は0点
         return (self.SCORE_NO_MATCH, "模範に該当なし")
