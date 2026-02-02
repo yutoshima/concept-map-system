@@ -1,231 +1,343 @@
-# CLI クイックリファレンス
+# CLIクイックリファレンス
 
-## 🚀 よく使うコマンド
+コマンドライン（CLI）で概念マップを採点する際のクイックリファレンス。
 
-### McClure方式で採点（推奨）
+---
+
+## 🚀 基本コマンド
+
+### 最もシンプルな使い方
+
 ```bash
-python -m concept_map_system cli -a mcclure master.csv student.csv
+# LEA法で採点
+python3 -m concept_map_system cli -a lea master.csv student.csv
+
+# McClure法で採点
+python3 -m concept_map_system cli -a mcclure master.csv student.csv
+
+# Novak法で採点
+python3 -m concept_map_system cli -a novak master.csv student.csv
 ```
 
-### LEA方式で採点
+### 利用可能なアルゴリズム一覧を表示
+
 ```bash
-python -m concept_map_system cli -a lea master.csv student.csv
+python3 -m concept_map_system cli --list
 ```
 
 ---
 
-## 📸 論文用の出力
+## 📊 複数アルゴリズムの実行
 
-### ASCII表形式（スクリーンショット向け）
+### 2つのアルゴリズムで比較
+
 ```bash
-python -m concept_map_system cli -a mcclure --format ascii master.csv student.csv
+# McClureとLEAで採点（逐次実行）
+python3 -m concept_map_system cli --algorithms mcclure,lea master.csv student.csv
+
+# McClureとLEAで採点（並列実行・高速）
+python3 -m concept_map_system cli --algorithms mcclure,lea --parallel master.csv student.csv
 ```
 
-**出力例:**
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📝 MCCLURE方式 で採点開始
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+### すべてのアルゴリズムで採点
 
-┌──────────────┐
-│ McClure方式 採点結果 │
-├──────┬───────┤
-│  指標  │   値   │
-╞══════╪═══════╡
-│ 合計得点 │ 20/30 │
-│ 正答率  │ 66.7% │
-│ F値   │ 0.800 │
-│ 適合率  │ 0.875 │
-│ 再現率  │ 0.737 │
-└──────┴───────┘
+```bash
+# すべて逐次実行
+python3 -m concept_map_system cli --all master.csv student.csv
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ 採点完了 (0.15秒)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# すべて並列実行（推奨）
+python3 -m concept_map_system cli --all --parallel master.csv student.csv
 ```
 
 ---
 
-## 📊 複数アルゴリズム比較
+## 📁 結果の保存
 
-### McClureとLEAを比較（表形式）
+### JSON形式で保存
+
 ```bash
-python -m concept_map_system cli --algorithms mcclure,lea --format ascii master.csv student.csv
+# 結果をJSONファイルに保存
+python3 -m concept_map_system cli -a lea -o result.json master.csv student.csv
 ```
 
-**出力例:**
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 2個のアルゴリズムで採点
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-┌─────────────────────────────────────────────────┐
-│                   アルゴリズム比較                    │
-├─────────┬───────┬───────┬───────┬───────┬───────┤
-│  アルゴリズム │   得点  │  正答率  │   F値  │  適合率  │  再現率  │
-╞═════════╪═══════╪═══════╪═══════╪═══════╪═══════╡
-│ mcclure │ 20/30 │ 66.7% │ 0.800 │ 0.875 │ 0.737 │
-│ lea     │ 22/30 │ 73.3% │ 0.850 │ 0.900 │ 0.805 │
-└─────────┴───────┴───────┴───────┴───────┴───────┘
-```
-
-### 並列実行で高速化
-```bash
-python -m concept_map_system cli --algorithms mcclure,lea --parallel master.csv student.csv
+**出力されるJSON例：**
+```json
+{
+  "method": "LEA",
+  "raw_score": 7,
+  "max_possible_score": 8,
+  "score_rate": 0.875,
+  "f_value": 0.875,
+  "precision": 0.875,
+  "recall": 0.875,
+  "matched_pairs": 2
+}
 ```
 
 ---
 
-## 📄 ファイル出力
+## 🔍 詳細表示・デバッグ
 
-### LaTeX形式で出力（論文埋め込み用）
+### 詳細な結果を表示
+
 ```bash
-python -m concept_map_system cli -a mcclure --format latex --export table.tex master.csv student.csv
+python3 -m concept_map_system cli -a lea -v master.csv student.csv
 ```
 
-### Markdown形式で出力（GitHub用）
+**詳細表示の内容：**
+- リンクごとのマッチング詳細
+- スコアの内訳
+- 未マッチリンクの一覧
+
+### デバッグモード（開発者向け）
+
 ```bash
-python -m concept_map_system cli -a mcclure --format markdown --export results.md master.csv student.csv
+python3 -m concept_map_system cli -a lea -d master.csv student.csv
 ```
 
-### CSV形式で出力（Excel分析用）
-```bash
-python -m concept_map_system cli -a mcclure --format csv --export data.csv master.csv student.csv
-```
+**デバッグ情報：**
+- 内部処理の詳細ログ
+- データ構造の表示
+- エラーの詳細なトレース
 
 ---
 
-## 🔧 オプション
+## ⚙️ アルゴリズム固有のオプション
 
-### 詳細表示
-```bash
-python -m concept_map_system cli -a mcclure -v master.csv student.csv
-```
+### McClure法：限定構造の展開モード
 
-### デバッグモード
-```bash
-python -m concept_map_system cli -a mcclure -d master.csv student.csv
-```
-
-### JSON出力
-```bash
-python -m concept_map_system cli -a mcclure -o result.json master.csv student.csv
-```
-
----
-
-## 📋 アルゴリズム一覧
-
-```bash
-python -m concept_map_system cli --list
-```
-
-**出力:**
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-利用可能なアルゴリズム
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-【推奨アルゴリズム】
-
-● MCCLURE
-  McClure (1999) 概念マップ採点方式
-
-● LEA
-  LEA法: 因果関係リンク評価システム
-
-【その他のアルゴリズム】
-
-● novak
-  Novak方式
-```
-
----
-
-## 🎯 アルゴリズム固有のオプション
-
-### McClure - 展開モード
 ```bash
 # Junction方式（デフォルト）
-python -m concept_map_system cli -a mcclure --expansion-mode junction master.csv student.csv
+python3 -m concept_map_system cli -a mcclure master.csv student.csv
 
 # Qualifier方式
-python -m concept_map_system cli -a mcclure --expansion-mode qualifier master.csv student.csv
+python3 -m concept_map_system cli -a mcclure --expansion-mode qualifier master.csv student.csv
 
 # 展開しない
-python -m concept_map_system cli -a mcclure --expansion-mode none master.csv student.csv
+python3 -m concept_map_system cli -a mcclure --expansion-mode none master.csv student.csv
 ```
 
-### LEA - 素点のみモード
+**展開モードの説明：**
+- **Junction**: 仮想ノードを使って限定構造を展開（推奨）
+- **Qualifier**: Qualifierリンクで限定を分解
+- **none**: 展開せずそのまま処理
+
+### Novak法：交差リンクスコア
+
 ```bash
-python -m concept_map_system cli -a lea --simple-score-only master.csv student.csv
+# Conflictリンクに2点を付与
+python3 -m concept_map_system cli -a novak --cross-link-score 2 master.csv student.csv
+
+# Conflictリンクに0点（デフォルト）
+python3 -m concept_map_system cli -a novak --cross-link-score 0 master.csv student.csv
 ```
 
-### Novak - 交差リンクスコア
+### LEA法：素点のみモード
+
 ```bash
-python -m concept_map_system cli -a novak --cross-link-score 2 master.csv student.csv
+# F値などの詳細指標を計算せず、素点のみ
+python3 -m concept_map_system cli -a lea --simple-score-only master.csv student.csv
 ```
 
 ---
 
-## 💡 実践例
+## 🔄 並列実行のオプション
 
-### 1. 論文用の図表作成
+### ワーカー数を指定
+
 ```bash
-# ASCII表形式でスクリーンショット
-python -m concept_map_system cli \
-  --algorithms mcclure,lea \
-  --format ascii \
-  master.csv student.csv
-
-# または LaTeX形式で直接埋め込み
-python -m concept_map_system cli \
-  --algorithms mcclure,lea \
-  --format latex \
-  --export comparison_table.tex \
-  master.csv student.csv
+# 4つのワーカーで並列実行
+python3 -m concept_map_system cli --all --parallel --workers 4 master.csv student.csv
 ```
 
-### 2. 複数の生徒を一括評価
+### プロセスベースの並列実行
+
+```bash
+# デフォルトはスレッドベース、プロセスベースに変更
+python3 -m concept_map_system cli --all --parallel --use-processes master.csv student.csv
+```
+
+**使い分け：**
+- **スレッドベース**（デフォルト）: 軽量、I/O待ちが多い場合に有効
+- **プロセスベース**: CPU負荷が高い場合に有効
+
+---
+
+## 💡 実践的な使用例
+
+### 例1：単一サンプルをMcClure法で採点
+
+```bash
+python3 -m concept_map_system cli \
+    -a mcclure \
+    answers/L-01.csv \
+    student_answers/pre/L-01/student_001.csv
+```
+
+### 例2：複数アルゴリズムで比較して結果を保存
+
+```bash
+python3 -m concept_map_system cli \
+    --algorithms mcclure,lea \
+    --parallel \
+    -o comparison.json \
+    answers/L-01.csv \
+    student_answers/pre/L-01/student_001.csv
+```
+
+### 例3：詳細情報を含めて保存
+
+```bash
+python3 -m concept_map_system cli \
+    -a lea \
+    -v \
+    -o detailed_result.json \
+    answers/L-01.csv \
+    student_answers/pre/L-01/student_001.csv
+```
+
+### 例4：複数学習者を一括採点（Bashスクリプト）
+
 ```bash
 #!/bin/bash
-for student in data/students/*.csv; do
-    name=$(basename "$student" .csv)
-    python -m concept_map_system cli \
-      -a mcclure \
-      --format ascii \
-      master.csv "$student" > "results/${name}.txt"
+# score_all.sh
+
+MASTER="answers/L-01.csv"
+STUDENT_DIR="student_answers/pre/L-01"
+OUTPUT_DIR="results"
+
+mkdir -p "$OUTPUT_DIR"
+
+for student_file in "$STUDENT_DIR"/*.csv; do
+    student_name=$(basename "$student_file" .csv)
+    echo "採点中: $student_name"
+
+    python3 -m concept_map_system cli \
+        --algorithms mcclure,lea \
+        --parallel \
+        -o "$OUTPUT_DIR/${student_name}.json" \
+        "$MASTER" \
+        "$student_file"
 done
+
+echo "すべての採点が完了しました"
 ```
 
-### 3. Excel分析用データ作成
+**実行：**
 ```bash
-python -m concept_map_system cli \
-  --algorithms mcclure,lea \
-  --format csv \
-  --export analysis.csv \
-  master.csv student.csv
+chmod +x score_all.sh
+./score_all.sh
+```
+
+### 例5：研究用の一括採点（Pythonスクリプト）
+
+```python
+# batch_scoring.py
+import subprocess
+from pathlib import Path
+import json
+
+def score_sample(master_file, student_file, algorithm):
+    """単一サンプルを採点"""
+    output_file = "temp_result.json"
+
+    cmd = [
+        "python3", "-m", "concept_map_system", "cli",
+        "-a", algorithm,
+        "-o", output_file,
+        str(master_file),
+        str(student_file)
+    ]
+
+    subprocess.run(cmd, check=True)
+
+    with open(output_file, 'r') as f:
+        result = json.load(f)
+
+    Path(output_file).unlink()
+    return result
+
+# 使用例
+master = Path("answers/L-01.csv")
+students = Path("student_answers/pre/L-01").glob("*.csv")
+
+results = []
+for student_file in students:
+    result = score_sample(master, student_file, "lea")
+    results.append({
+        "student": student_file.name,
+        "score": result["raw_score"],
+        "f_value": result["f_value"]
+    })
+
+# 結果をまとめて保存
+with open("batch_results.json", 'w') as f:
+    json.dump(results, f, indent=2, ensure_ascii=False)
+
+print(f"✅ {len(results)}名の採点が完了しました")
 ```
 
 ---
 
-## ❓ ヘルプ
+## 🎮 GUIの起動
 
-### 全体のヘルプ
 ```bash
-python -m concept_map_system cli --help
+# グラフィカルインターフェースを起動
+python3 -m concept_map_system gui
 ```
 
-### クイックヘルプ
+**GUIでできること：**
+- ファイル選択（ドラッグ&ドロップ対応）
+- アルゴリズムの選択（複数選択可）
+- 実行設定（並列実行、詳細表示など）
+- 結果の表示
+- 結果のJSON保存
+
+---
+
+## ❓ ヘルプの表示
+
+### 全般的なヘルプ
+
 ```bash
-python -m concept_map_system cli -h
+python3 -m concept_map_system cli --help
 ```
+
+### 簡易ヘルプ
+
+```bash
+python3 -m concept_map_system cli -h
+```
+
+---
+
+## 📋 全オプション一覧
+
+| オプション | 短縮形 | 説明 | 例 |
+|----------|--------|------|-----|
+| `--algorithm` | `-a` | 実行するアルゴリズム | `-a lea` |
+| `--algorithms` | なし | 複数アルゴリズム（カンマ区切り） | `--algorithms mcclure,lea` |
+| `--all` | なし | すべてのアルゴリズムを実行 | `--all` |
+| `--list` | なし | 利用可能なアルゴリズム一覧 | `--list` |
+| `--parallel` | なし | 並列実行モード | `--parallel` |
+| `--workers` | なし | ワーカー数 | `--workers 4` |
+| `--use-processes` | なし | プロセスベース並列実行 | `--use-processes` |
+| `--verbose` | `-v` | 詳細な結果を表示 | `-v` |
+| `--debug` | `-d` | デバッグ情報を表示 | `-d` |
+| `--output` | `-o` | JSON出力ファイル | `-o result.json` |
+| `--expansion-mode` | なし | 限定構造の展開モード | `--expansion-mode qualifier` |
+| `--cross-link-score` | なし | 交差リンクスコア（Novak） | `--cross-link-score 2` |
+| `--simple-score-only` | なし | 素点のみモード（LEA） | `--simple-score-only` |
 
 ---
 
 ## 🔗 関連ドキュメント
 
-- [README.md](README.md) - 概要と基本的な使い方
-- [USAGE_EXAMPLES.md](USAGE_EXAMPLES.md) - 詳細な使用例
-- [ACADEMIC_OUTPUT.md](ACADEMIC_OUTPUT.md) - 論文品質出力の詳細
-- [README_DEV.md](README_DEV.md) - 開発者向け情報
+- **[README.md](README.md)** - システム概要と基本的な使い方
+- **[USAGE_EXAMPLES.md](USAGE_EXAMPLES.md)** - より詳細な使用例
+- **[ACADEMIC_OUTPUT.md](ACADEMIC_OUTPUT.md)** - 研究論文での使用方法
+- **[README_DEV.md](README_DEV.md)** - 開発者向け情報
+
+---
+
+**更新日:** 2025-02

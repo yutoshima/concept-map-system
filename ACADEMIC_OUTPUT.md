@@ -1,471 +1,572 @@
-# 論文品質出力ガイド
+# 研究論文での使用ガイド
 
-概念マップ採点統合システムは、学術論文に掲載できる高品質な表とレポートを生成する機能を提供します。
-
-## 📊 対応フォーマット
-
-| フォーマット | 用途 | 拡張子 |
-|------------|------|--------|
-| **ASCII** | コンソール表示、プレーンテキスト | .txt |
-| **LaTeX** | LaTeX文書への直接埋め込み | .tex |
-| **Markdown** | Markdown文書、GitHub README | .md |
-| **CSV** | Excel、データ分析ツール | .csv |
+概念マップ採点システムを学術研究で使用する際のガイド。データ収集、分析、論文執筆のワークフローを解説します。
 
 ---
 
-## 🎯 基本的な使い方
+## 🎯 研究での典型的なワークフロー
 
-### 単一アルゴリズムの実行
-
-#### 標準出力（デフォルト）
-```bash
-python -m concept_map_system cli \
-  -a mcclure \
-  master.csv \
-  student.csv
 ```
-
-#### ASCII表形式（論文向け）
-```bash
-python -m concept_map_system cli \
-  -a mcclure \
-  --format ascii \
-  master.csv \
-  student.csv
-```
-
-**出力例:**
-```
-======================================================================
-                      概念マップ採点結果レポート
-======================================================================
-
-【実行情報】
-  実行日時:     2025-12-22 15:30:45
-  アルゴリズム: mcclure
-  模範解答:     master.csv
-  生徒回答:     student.csv
-
-----------------------------------------------------------------------
-
-┌──────────────────────────┐
-│    McClure方式 採点結果      │
-├───────┬──────────────────┤
-│  指標  │        値         │
-╞═══════╪══════════════════╡
-│ 合計得点 │ 20/30            │
-│ 正答率  │ 66.7%            │
-│ F値    │ 0.800            │
-│ 適合率  │ 0.875            │
-│ 再現率  │ 0.737            │
-│ 総命題数 │ 10               │
-└───────┴──────────────────┘
+1. データ収集（CSV形式）
+   ↓
+2. 一括採点（このシステム）
+   ↓
+3. 結果の集計・分析（Python/Excel）
+   ↓
+4. 論文執筆（統計値、図表作成）
 ```
 
 ---
 
-## 📝 LaTeX形式での出力
+## 📊 ステップ1：データ準備
 
-### 使用方法
+### ディレクトリ構成
 
-```bash
-python -m concept_map_system cli \
-  -a mcclure \
-  --format latex \
-  --export results.tex \
-  master.csv \
-  student.csv
+```
+research_project/
+├── data/
+│   ├── answers/              # 模範解答
+│   │   ├── L-01.csv
+│   │   ├── L-02.csv
+│   │   └── ...
+│   └── student_answers/      # 学習者データ
+│       ├── pre/              # 事前テスト
+│       │   ├── L-01/
+│       │   │   ├── student_001.csv
+│       │   │   ├── student_002.csv
+│       │   │   └── ...
+│       │   └── ...
+│       ├── post/             # 事後テスト
+│       └── ...
+├── results/                  # 採点結果（JSON）
+├── analysis/                 # 分析結果
+└── scripts/
+    ├── run_scoring.py        # 一括採点スクリプト
+    └── analyze_results.py    # 分析スクリプト
 ```
 
-### 生成されるLaTeX
+### CSVデータ形式
 
-```latex
-\begin{table}[htbp]
-  \centering
-  \caption{McClure方式 採点結果}
-  \label{tab:mcclure_results}
-  \begin{tabular}{|l|r|}
-    \hline
-    \textbf{指標} & \textbf{値} \\
-    \hline
-    合計得点 & 20/30 \\
-    正答率 & 66.7\% \\
-    F値 & 0.800 \\
-    適合率 & 0.875 \\
-    再現率 & 0.737 \\
-    総命題数 & 10 \\
-    \hline
-  \end{tabular}
-\end{table}
-```
-
-### LaTeX文書への組み込み
-
-```latex
-\documentclass{article}
-\usepackage[utf8]{inputenc}
-\usepackage[japanese]{babel}
-
-\begin{document}
-
-\section{実験結果}
-
-概念マップ採点アルゴリズムを用いた評価結果を表\ref{tab:mcclure_results}に示す。
-
-\input{results.tex}
-
-表から、F値が0.800であり、適合率と再現率のバランスが取れていることが確認できる。
-
-\end{document}
-```
-
----
-
-## 📊 複数アルゴリズムの比較表
-
-### ASCII形式
-
-```bash
-python -m concept_map_system cli \
-  --algorithms mcclure,novak,lea \
-  --format ascii \
-  master.csv \
-  student.csv
-```
-
-**出力例:**
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                        アルゴリズム比較                              │
-├───────────┬───────┬─────────┬───────┬─────────┬─────────┤
-│ アルゴリズム │  得点  │  正答率   │  F値   │  適合率   │  再現率   │
-╞═══════════╪═══════╪═════════╪═══════╪═════════╪═════════╡
-│ mcclure   │ 20/30 │  66.7%  │ 0.800 │  0.875  │  0.737  │
-│ novak     │ 18/30 │  60.0%  │ 0.750 │  0.800  │  0.706  │
-│ lea       │ 22/30 │  73.3%  │ 0.850 │  0.900  │  0.805  │
-└───────────┴───────┴─────────┴───────┴─────────┴─────────┘
-```
-
-### LaTeX形式
-
-```bash
-python -m concept_map_system cli \
-  --algorithms mcclure,novak,lea \
-  --format latex \
-  --export comparison.tex \
-  master.csv \
-  student.csv
-```
-
-**生成される表:**
-```latex
-\begin{table}[htbp]
-  \centering
-  \caption{採点アルゴリズム比較}
-  \label{tab:algorithm_comparison}
-  \begin{tabular}{|l|c|r|r|r|}
-    \hline
-    \textbf{アルゴリズム} & \textbf{得点} & \textbf{F値} & \textbf{適合率} & \textbf{再現率} \\
-    \hline
-    mcclure & 20/30 & 0.800 & 0.875 & 0.737 \\
-    novak & 18/30 & 0.750 & 0.800 & 0.706 \\
-    lea & 22/30 & 0.850 & 0.900 & 0.805 \\
-    \hline
-  \end{tabular}
-\end{table}
-```
-
-### Markdown形式
-
-```bash
-python -m concept_map_system cli \
-  --algorithms mcclure,novak,lea \
-  --format markdown \
-  --export comparison.md \
-  master.csv \
-  student.csv
-```
-
-**生成される表:**
-```markdown
-| アルゴリズム | 得点  | 正答率 |   F値 | 適合率 | 再現率 |
-| ------- | ----- | ----: | ----: | ----: | ----: |
-| mcclure | 20/30 | 66.7% | 0.800 | 0.875 | 0.737 |
-| novak   | 18/30 | 60.0% | 0.750 | 0.800 | 0.706 |
-| lea     | 22/30 | 73.3% | 0.850 | 0.900 | 0.805 |
-```
-
-### CSV形式
-
-```bash
-python -m concept_map_system cli \
-  --algorithms mcclure,novak,lea \
-  --format csv \
-  --export comparison.csv \
-  master.csv \
-  student.csv
-```
-
-**生成されるCSV:**
+**模範解答の例（L-01.csv）：**
 ```csv
-アルゴリズム,得点,正答率,F値,適合率,再現率
-mcclure,20/30,66.7%,0.800,0.875,0.737
-novak,18/30,60.0%,0.750,0.800,0.706
-lea,22/30,73.3%,0.850,0.900,0.805
+id,text,antes,conq,type
+0,rule-0,0 1,2,If
+1,rule-1,2,3,Then
 ```
 
-このCSVファイルは Excel や Google Sheets、pandas 等でそのまま読み込めます。
+**学習者解答も同じ形式。**
 
 ---
 
-## 🔬 再現性情報
+## 🔬 ステップ2：一括採点
 
-論文品質フォーマット（`--format`が`standard`以外）では、実験の再現性のためにメタデータが自動的に記録されます。
-
-### 含まれる情報
-
-- **実行日時**: タイムスタンプ
-- **アルゴリズム名**: 使用したアルゴリズム
-- **入力ファイル**: 模範解答と生徒回答のファイル名
-- **実行パラメータ**: expansion_mode, cross_link_score, simple_score_only等
-
-### 出力例
-
-```
-======================================================================
-                      概念マップ採点結果レポート
-======================================================================
-
-【実行情報】
-  実行日時:     2025-12-22 15:30:45
-  アルゴリズム: mcclure
-  模範解答:     master.csv
-  生徒回答:     student.csv
-
-【実行パラメータ】
-  expansion_mode: junction
-  verbose: True
-
-----------------------------------------------------------------------
-```
-
----
-
-## 💡 実用例
-
-### 論文の図表として使用
-
-#### 1. LaTeX形式でエクスポート
-
-```bash
-python -m concept_map_system cli \
-  --algorithms mcclure,novak,lea \
-  --format latex \
-  --export table1.tex \
-  data/master.csv \
-  data/student01.csv
-```
-
-#### 2. LaTeX文書に埋め込み
-
-```latex
-\section{実験結果}
-
-\subsection{アルゴリズム比較}
-
-3つの概念マップ採点アルゴリズム（McClure、Novak、LEA）を用いて
-生徒の回答を評価した結果を表\ref{tab:algorithm_comparison}に示す。
-
-\input{table1.tex}
-
-LEAアルゴリズムが最も高いF値（0.850）を示し、McClure（0.800）、
-Novak（0.750）がこれに続いた。
-```
-
-### GitHubのREADMEに掲載
-
-#### 1. Markdown形式でエクスポート
-
-```bash
-python -m concept_map_system cli \
-  -a mcclure \
-  --format markdown \
-  master.csv \
-  student.csv
-```
-
-#### 2. 出力をコピー＆ペースト
-
-```markdown
-## 評価結果
-
-| 指標    |     値 |
-| ------- | -----: |
-| 合計得点 |  20/30 |
-| 正答率  | 66.7% |
-| F値    |  0.800 |
-| 適合率  |  0.875 |
-| 再現率  |  0.737 |
-```
-
-### Excelで分析
-
-#### 1. CSV形式でエクスポート
-
-```bash
-python -m concept_map_system cli \
-  --algorithms mcclure,novak,lea \
-  --format csv \
-  --export results.csv \
-  master.csv \
-  student.csv
-```
-
-#### 2. Excelで開く
-
-- ファイル → 開く → results.csv
-- グラフ作成、統計分析、条件付き書式などを適用
-
----
-
-## 📈 高度な使用例
-
-### 複数の生徒を一括評価
+### 方法1：シェルスクリプトで一括採点
 
 ```bash
 #!/bin/bash
+# score_all.sh - 全サンプルを採点
 
-# すべての生徒の回答を評価
-for student in data/students/*.csv; do
-    student_name=$(basename "$student" .csv)
+MASTER_DIR="data/answers"
+STUDENT_DIR="data/student_answers/pre"
+OUTPUT_DIR="results/pre"
+ALGORITHMS="mcclure,lea"  # 使用するアルゴリズム
 
-    python -m concept_map_system cli \
-      --algorithms mcclure,novak,lea \
-      --format latex \
-      --export "results/${student_name}_table.tex" \
-      data/master.csv \
-      "$student"
+mkdir -p "$OUTPUT_DIR"
+
+# 各タスク（L-01〜L-05）をループ
+for task in L-01 L-02 L-03 L-04 L-05; do
+    echo "タスク $task を処理中..."
+    master_file="$MASTER_DIR/$task.csv"
+    task_output_dir="$OUTPUT_DIR/$task"
+    mkdir -p "$task_output_dir"
+
+    # 各学習者をループ
+    for student_file in "$STUDENT_DIR/$task"/*.csv; do
+        student_name=$(basename "$student_file" .csv)
+        output_file="$task_output_dir/${student_name}.json"
+
+        echo "  採点中: $student_name"
+        python3 -m concept_map_system cli \
+            --algorithms "$ALGORITHMS" \
+            --parallel \
+            -o "$output_file" \
+            "$master_file" \
+            "$student_file"
+    done
 done
 
-echo "すべての生徒の評価が完了しました"
+echo "✅ すべての採点が完了しました"
 ```
 
-### LaTeX文書への一括組み込み
+**実行：**
+```bash
+chmod +x score_all.sh
+./score_all.sh
+```
+
+### 方法2：Pythonスクリプトで一括採点
+
+```python
+#!/usr/bin/env python3
+"""
+run_scoring.py - 全サンプルを一括採点
+"""
+
+import subprocess
+import json
+from pathlib import Path
+from datetime import datetime
+
+# 設定
+BASE_DIR = Path(__file__).parent
+MASTER_DIR = BASE_DIR / "data/answers"
+STUDENT_BASE_DIR = BASE_DIR / "data/student_answers"
+OUTPUT_DIR = BASE_DIR / "results"
+ALGORITHMS = ["mcclure", "lea"]
+
+# タスクとフェーズの定義
+TASKS = ["L-01", "L-02", "L-03", "L-04", "L-05"]
+PHASES = ["pre", "post", "delay"]
+
+def score_sample(master_file, student_file, algorithms):
+    """単一サンプルを採点してJSON結果を返す"""
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        output_file = f.name
+
+    cmd = [
+        "python3", "-m", "concept_map_system", "cli",
+        "--algorithms", ",".join(algorithms),
+        "--parallel",
+        "-o", output_file,
+        str(master_file),
+        str(student_file)
+    ]
+
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode == 0 and Path(output_file).exists():
+            with open(output_file, 'r') as f:
+                data = json.load(f)
+            Path(output_file).unlink()
+            return data
+        else:
+            return {"error": result.stderr}
+    except subprocess.TimeoutExpired:
+        return {"error": "Timeout"}
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        if Path(output_file).exists():
+            Path(output_file).unlink()
+
+def main():
+    print("=" * 60)
+    print("概念マップ一括採点システム")
+    print("=" * 60)
+    print(f"開始時刻: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print()
+
+    total_samples = 0
+    success_count = 0
+    error_count = 0
+
+    # 各フェーズを処理
+    for phase in PHASES:
+        phase_dir = STUDENT_BASE_DIR / phase
+        if not phase_dir.exists():
+            print(f"⚠️  スキップ: {phase} (ディレクトリが存在しません)")
+            continue
+
+        print(f"\n📂 フェーズ: {phase}")
+        phase_output_dir = OUTPUT_DIR / phase
+        phase_output_dir.mkdir(parents=True, exist_ok=True)
+
+        # 各タスクを処理
+        for task in TASKS:
+            task_dir = phase_dir / task
+            master_file = MASTER_DIR / f"{task}.csv"
+
+            if not task_dir.exists() or not master_file.exists():
+                continue
+
+            print(f"  タスク: {task}")
+            task_output_dir = phase_output_dir / task
+            task_output_dir.mkdir(parents=True, exist_ok=True)
+
+            # 各学習者を処理
+            for student_file in sorted(task_dir.glob("*.csv")):
+                total_samples += 1
+                student_name = student_file.stem
+                output_file = task_output_dir / f"{student_name}.json"
+
+                # 採点実行
+                result = score_sample(master_file, student_file, ALGORITHMS)
+
+                # 結果を保存
+                with open(output_file, 'w', encoding='utf-8') as f:
+                    json.dump({
+                        "phase": phase,
+                        "task": task,
+                        "student": student_name,
+                        "master_file": str(master_file),
+                        "student_file": str(student_file),
+                        "results": result,
+                        "timestamp": datetime.now().isoformat()
+                    }, f, ensure_ascii=False, indent=2)
+
+                if "error" not in result:
+                    success_count += 1
+                    print(f"    ✅ {student_name}")
+                else:
+                    error_count += 1
+                    print(f"    ❌ {student_name}: {result['error']}")
+
+    # サマリー表示
+    print("\n" + "=" * 60)
+    print("採点完了")
+    print("=" * 60)
+    print(f"総サンプル数: {total_samples}")
+    print(f"成功: {success_count}")
+    print(f"失敗: {error_count}")
+    print(f"終了時刻: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+if __name__ == "__main__":
+    main()
+```
+
+**実行：**
+```bash
+python3 run_scoring.py
+```
+
+**実行時間の目安：**
+- McClure法: 約0.16秒/サンプル
+- LEA法: 約0.41秒/サンプル
+- 225サンプル（2アルゴリズム）: 約2分
+
+---
+
+## 📈 ステップ3：結果の分析
+
+### 採点結果の集計スクリプト
+
+```python
+#!/usr/bin/env python3
+"""
+analyze_results.py - 採点結果を集計して統計を出力
+"""
+
+import json
+import pandas as pd
+from pathlib import Path
+
+# 結果ディレクトリ
+RESULTS_DIR = Path("results")
+OUTPUT_DIR = Path("analysis")
+OUTPUT_DIR.mkdir(exist_ok=True)
+
+def load_all_results():
+    """全結果JSONを読み込み"""
+    results = []
+    for json_file in RESULTS_DIR.rglob("*.json"):
+        with open(json_file, 'r') as f:
+            data = json.load(f)
+            results.append(data)
+    return results
+
+def extract_scores(results):
+    """スコアデータを抽出してDataFrameに変換"""
+    rows = []
+    for result in results:
+        phase = result.get("phase", "unknown")
+        task = result.get("task", "unknown")
+        student = result.get("student", "unknown")
+
+        for algo_name, algo_result in result.get("results", {}).items():
+            if "error" in algo_result:
+                continue
+
+            row = {
+                "phase": phase,
+                "task": task,
+                "student": student,
+                "algorithm": algo_name,
+                "f_value": algo_result.get("f_value", None),
+                "precision": algo_result.get("precision", None),
+                "recall": algo_result.get("recall", None),
+            }
+
+            # アルゴリズム固有のスコア
+            if algo_name == "mcclure":
+                row["score"] = algo_result.get("total_score", 0)
+                row["max_score"] = algo_result.get("max_score", 0)
+                row["percentage"] = algo_result.get("percentage", 0)
+            elif algo_name == "lea":
+                row["score"] = algo_result.get("raw_score", 0)
+                row["max_score"] = algo_result.get("max_possible_score", 0)
+                row["percentage"] = algo_result.get("score_rate", 0) * 100
+
+            rows.append(row)
+
+    return pd.DataFrame(rows)
+
+def main():
+    print("📊 結果分析を開始します...")
+
+    # 全結果を読み込み
+    results = load_all_results()
+    print(f"✅ {len(results)}個のJSONファイルを読み込みました")
+
+    # DataFrameに変換
+    df = extract_scores(results)
+    print(f"✅ {len(df)}行のデータを抽出しました")
+
+    # 統計計算
+    print("\n" + "=" * 60)
+    print("📈 アルゴリズム別統計")
+    print("=" * 60)
+
+    for algo in df['algorithm'].unique():
+        algo_df = df[df['algorithm'] == algo]
+        print(f"\n{algo.upper()}:")
+        print(f"  サンプル数: {len(algo_df)}")
+        print(f"  F値 - 平均: {algo_df['f_value'].mean():.3f}, "
+              f"標準偏差: {algo_df['f_value'].std():.3f}")
+        print(f"  適合率 - 平均: {algo_df['precision'].mean():.3f}")
+        print(f"  再現率 - 平均: {algo_df['recall'].mean():.3f}")
+
+    # CSV出力
+    output_csv = OUTPUT_DIR / "all_scores.csv"
+    df.to_csv(output_csv, index=False, encoding='utf-8-sig')
+    print(f"\n✅ 全スコアを保存: {output_csv}")
+
+    # ピボットテーブル（フェーズ×アルゴリズム）
+    pivot = df.pivot_table(
+        values='f_value',
+        index='phase',
+        columns='algorithm',
+        aggfunc='mean'
+    )
+    output_pivot = OUTPUT_DIR / "phase_algorithm_fvalue.csv"
+    pivot.to_csv(output_pivot, encoding='utf-8-sig')
+    print(f"✅ ピボットテーブルを保存: {output_pivot}")
+
+    # タスク別統計
+    task_stats = df.groupby(['task', 'algorithm']).agg({
+        'f_value': ['mean', 'std', 'count']
+    }).round(3)
+    output_task = OUTPUT_DIR / "task_statistics.csv"
+    task_stats.to_csv(output_task, encoding='utf-8-sig')
+    print(f"✅ タスク別統計を保存: {output_task}")
+
+    print("\n✅ 分析完了！")
+
+if __name__ == "__main__":
+    main()
+```
+
+**実行：**
+```bash
+python3 analyze_results.py
+```
+
+**出力ファイル：**
+- `analysis/all_scores.csv` - 全スコア一覧
+- `analysis/phase_algorithm_fvalue.csv` - フェーズ×アルゴリズムのF値平均
+- `analysis/task_statistics.csv` - タスク別統計
+
+---
+
+## 📝 ステップ4：論文執筆
+
+### 記述統計の報告
 
 ```latex
-\section{全生徒の評価結果}
+\section{実験結果}
 
-\subsection{生徒A}
-\input{results/student_a_table.tex}
+\subsection{採点アルゴリズムの比較}
 
-\subsection{生徒B}
-\input{results/student_b_table.tex}
+225サンプルに対して、McClure法とLEA法の2つのアルゴリズムで採点を行った。
+各アルゴリズムのF値、適合率、再現率の平均値と標準偏差を表\ref{tab:algo_comparison}に示す。
 
-\subsection{生徒C}
-\input{results/student_c_table.tex}
+\begin{table}[htbp]
+  \centering
+  \caption{採点アルゴリズムの評価指標}
+  \label{tab:algo_comparison}
+  \begin{tabular}{lccc}
+    \hline
+    アルゴリズム & F値 & 適合率 & 再現率 \\
+    \hline
+    McClure & $0.756 \pm 0.123$ & $0.812 \pm 0.145$ & $0.721 \pm 0.132$ \\
+    LEA & $0.821 \pm 0.098$ & $0.865 \pm 0.112$ & $0.793 \pm 0.109$ \\
+    \hline
+  \end{tabular}
+\end{table}
+
+LEA法はMcClure法よりも高いF値を示し（$t(224) = 5.34, p < .001$）、
+より正確な採点が可能であることが示唆された。
+```
+
+### 図の作成（Python + Matplotlib）
+
+```python
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# データ読み込み
+df = pd.read_csv("analysis/all_scores.csv")
+
+# フェーズごとのF値の箱ひげ図
+plt.figure(figsize=(10, 6))
+sns.boxplot(data=df, x='phase', y='f_value', hue='algorithm')
+plt.title('F値の分布（フェーズ×アルゴリズム）')
+plt.xlabel('実験フェーズ')
+plt.ylabel('F値')
+plt.legend(title='アルゴリズム')
+plt.tight_layout()
+plt.savefig('analysis/fvalue_by_phase.png', dpi=300)
+plt.close()
+
+# アルゴリズム間の相関（散布図）
+mcclure_df = df[df['algorithm'] == 'mcclure'][['student', 'task', 'f_value']]
+lea_df = df[df['algorithm'] == 'lea'][['student', 'task', 'f_value']]
+merged = pd.merge(mcclure_df, lea_df, on=['student', 'task'],
+                  suffixes=('_mcclure', '_lea'))
+
+plt.figure(figsize=(8, 8))
+plt.scatter(merged['f_value_mcclure'], merged['f_value_lea'], alpha=0.5)
+plt.plot([0, 1], [0, 1], 'r--', label='y=x')
+plt.xlabel('McClure法のF値')
+plt.ylabel('LEA法のF値')
+plt.title('McClure法とLEA法のF値の相関')
+plt.legend()
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.savefig('analysis/mcclure_lea_correlation.png', dpi=300)
+plt.close()
+
+print("✅ 図を保存しました")
 ```
 
 ---
 
-## 🎨 フォーマット選択ガイド
+## 🔬 再現性の確保
 
-| 目的 | 推奨フォーマット | 理由 |
-|------|----------------|------|
-| **学術論文（LaTeX）** | `--format latex` | LaTeX文書に直接埋め込み可能 |
-| **学術論文（Word）** | `--format csv` → Excel → Word | Excelで整形後にWordへ貼り付け |
-| **技術レポート** | `--format ascii` | プレーンテキストで見やすい |
-| **GitHub/Markdown** | `--format markdown` | Markdown記法で直接表示 |
-| **データ分析** | `--format csv` | pandas、R、Excelで処理可能 |
-| **プレゼン資料** | `--format csv` → グラフ化 | Excelでグラフ作成 |
+### 実験環境の記録
 
----
+```python
+import sys
+import subprocess
 
-## 🔧 技術仕様
+def record_environment():
+    """実験環境を記録"""
+    env_info = {
+        "python_version": sys.version,
+        "platform": sys.platform,
+        "concept_map_system_version": "1.1.0",
+        "execution_date": datetime.now().isoformat(),
+    }
 
-### 表の自動配置
+    with open("analysis/environment.json", 'w') as f:
+        json.dump(env_info, f, indent=2)
 
-- **数値列**: 右寄せ（F値、適合率など）
-- **テキスト列**: 左寄せ（アルゴリズム名など）
-- **ヘッダー**: 中央寄せ
+    print("✅ 実験環境を記録しました")
+```
 
-### 文字エンコーディング
+### 論文での記載例
 
-- デフォルト: UTF-8
-- LaTeX: UTF-8（`\usepackage[utf8]{inputenc}`が必要）
-- CSV: UTF-8 BOM（Excelで正しく開くため）
+```latex
+\subsection{実験環境}
 
-### 小数点精度
-
-- F値、適合率、再現率: 小数点3桁
-- 正答率: 小数点1桁
-
----
-
-## ❓ よくある質問
-
-### Q1: LaTeX表が正しく表示されない
-
-**A:** `\usepackage[utf8]{inputenc}`と`\usepackage[japanese]{babel}`が必要です。
-
-### Q2: Excelでcsvが文字化けする
-
-**A:** Excelで開く際、「データ → テキストまたはCSVから」を選択し、エンコーディングをUTF-8に指定してください。
-
-### Q3: 複数のフォーマットを同時に出力したい
-
-**A:** スクリプトで複数回実行してください：
-
-```bash
-# ASCII形式でコンソール表示
-python -m concept_map_system cli -a mcclure --format ascii master.csv student.csv
-
-# LaTeX形式でファイル出力
-python -m concept_map_system cli -a mcclure --format latex --export table.tex master.csv student.csv
-
-# CSV形式でファイル出力
-python -m concept_map_system cli -a mcclure --format csv --export data.csv master.csv student.csv
+概念マップの採点には、概念マップ採点統合システム（バージョン1.1.0）を使用した。
+Python 3.10環境で、McClure法\cite{mcclure1999}とLEA（Link Evaluation Algorithm）の
+2つのアルゴリズムを用いて評価を行った。各サンプルの処理時間は、McClure法で平均0.16秒、
+LEA法で平均0.41秒であった。
 ```
 
 ---
 
-## 📚 関連ドキュメント
+## 📊 統計分析の例
 
-- [README.md](README.md) - 一般的な使用方法
-- [USAGE_EXAMPLES.md](USAGE_EXAMPLES.md) - 詳細な使用例
-- [README_DEV.md](README_DEV.md) - 開発者向け情報
+### 対応のあるt検定（Python）
+
+```python
+from scipy import stats
+
+# McClure法とLEA法のF値を比較
+mcclure_scores = df[df['algorithm'] == 'mcclure']['f_value'].values
+lea_scores = df[df['algorithm'] == 'lea']['f_value'].values
+
+# 対応のあるt検定
+t_stat, p_value = stats.ttest_rel(mcclure_scores, lea_scores)
+
+print(f"t値: {t_stat:.3f}")
+print(f"p値: {p_value:.4f}")
+print(f"効果量（Cohen's d）: {(lea_scores.mean() - mcclure_scores.mean()) / lea_scores.std():.3f}")
+```
+
+### 相関分析
+
+```python
+from scipy.stats import pearsonr, spearmanr
+
+# McClure法とLEA法の相関
+r, p = pearsonr(merged['f_value_mcclure'], merged['f_value_lea'])
+print(f"Pearson相関係数: r={r:.3f}, p={p:.4f}")
+
+rho, p = spearmanr(merged['f_value_mcclure'], merged['f_value_lea'])
+print(f"Spearman相関係数: ρ={rho:.3f}, p={p:.4f}")
+```
 
 ---
 
 ## 📖 引用方法
 
-論文でこのシステムを使用した場合の引用例:
+### BibTeX
 
 ```bibtex
 @software{concept_map_system,
-  title = {概念マップ採点統合システム},
-  version = {1.1.0},
-  year = {2025},
-  note = {McClure, Novak, LEA採点アルゴリズムを実装}
+  title={概念マップ採点統合システム},
+  version={1.1.0},
+  year={2025},
+  note={McClure法、Novak法、LEA法を実装した概念マップ自動採点ツール},
+  url={https://github.com/yourusername/concept_map_system}
 }
 ```
 
-本文中：
+### 本文での言及
+
 ```
-概念マップの採点には、概念マップ採点統合システム (version 1.1.0) を使用した。
-McClure方式、Novak方式、LEA (Link Evaluation Algorithm) の3つのアルゴリズムで
-評価を行い、F値、適合率、再現率を算出した。
+概念マップの採点には、概念マップ採点統合システム（バージョン1.1.0）を使用した。
+このシステムは、McClure (1999) の基準に基づくMcClure法と、
+最適マッチングによるLEA（Link Evaluation Algorithm）法を実装しており、
+F値、適合率、再現率を自動計算する。
 ```
 
 ---
 
-## ✨ まとめ
+## ✅ チェックリスト
 
-論文品質出力機能により、以下が可能になります:
+論文投稿前に確認すべき事項：
 
-- ✅ **LaTeX論文への直接埋め込み**
-- ✅ **再現可能な実験記録**
-- ✅ **複数アルゴリズムの視覚的比較**
-- ✅ **Excelでのデータ分析**
-- ✅ **GitHubでの結果共有**
+- [ ] 全サンプルが正常に採点されている（エラー0件）
+- [ ] 実行環境（Pythonバージョン、OSなど）を記録している
+- [ ] 使用したアルゴリズムとパラメータを明記している
+- [ ] 統計分析の手法を明記している（t検定、相関分析など）
+- [ ] 図表に適切なキャプションと参照番号がついている
+- [ ] 生データ（JSON）とスクリプトを保存している
+- [ ] 再現可能性のため、スクリプトとREADMEを用意している
 
-学術的な要件を満たす高品質な出力で、研究成果の発表をサポートします。
+---
+
+## 🔗 関連ドキュメント
+
+- **[README.md](README.md)** - システム概要
+- **[CLI_QUICK_REFERENCE.md](CLI_QUICK_REFERENCE.md)** - CLIコマンドリファレンス
+- **[USAGE_EXAMPLES.md](USAGE_EXAMPLES.md)** - 詳細な使用例
+
+---
+
+**更新日:** 2025-02
