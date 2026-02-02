@@ -191,11 +191,15 @@ class BaseConceptMapScorer:
         expanded_props: List[ExpandedProposition] = []
 
         # Junction用の限定ノード (〜への限定)
-        conq_str = "_".join(conq_ids)
+        # ノードIDを正規化するためソート
+        conq_sorted = sorted(conq_ids)
+        conq_str = "_".join(conq_sorted)
         junction_node = f"{constants.JUNCTION_PREFIX_TO}{conq_str}"
 
         # メインリンク用の限定ノード (〜からの限定)
-        antes_str = "_".join(antes_ids)
+        # ノードIDを正規化するためソート
+        antes_sorted = sorted(antes_ids)
+        antes_str = "_".join(antes_sorted)
         main_node = f"{constants.JUNCTION_PREFIX_FROM}{antes_str}"
 
         for ante_id in antes_ids:
@@ -232,11 +236,15 @@ class BaseConceptMapScorer:
         expanded_props: List[ExpandedProposition] = []
 
         # メインリンク後半用の限定ノード (〜への限定)
-        conq_str = "_".join(conq_ids)
+        # ノードIDを正規化するためソート
+        conq_sorted = sorted(conq_ids)
+        conq_str = "_".join(conq_sorted)
         main_node = f"{constants.JUNCTION_PREFIX_TO}{conq_str}"
 
         # Junction用の限定ノード (〜からの限定)
-        antes_str = "_".join(antes_ids)
+        # ノードIDを正規化するためソート
+        antes_sorted = sorted(antes_ids)
+        antes_str = "_".join(antes_sorted)
         junction_node = f"{constants.JUNCTION_PREFIX_FROM}{antes_str}"
 
         for conq_id in conq_ids:
