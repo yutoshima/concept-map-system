@@ -413,7 +413,8 @@ def create_links_from_csv(file_path: str) -> List[Link]:
         for row in csv_data:
             antes_set = set(str(row["antes"]).split())
             conq_set = {str(row["conq"])}
-            link_type = str(row.get("type", ""))
+            # リンクタイプを正規化（小文字化、前後空白除去）
+            link_type = str(row.get("type", "")).lower().strip()
             links.append((antes_set, conq_set, link_type))
 
         return links
